@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TERMINAL ACCESS /// V4.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #000;
+            color: #0f0;
+            font-family: 'JetBrains Mono', monospace;
+            overflow: hidden;
+        }
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .glow-box {
+            box-shadow: 0 0 10px #0f0, inset 0 0 10px #0f0;
+            border: 1px solid #0f0;
+            background: rgba(0, 20, 0, 0.9);
+        }
+        .glitch-text {
+            animation: glitch 1s infinite;
+        }
+        @keyframes glitch {
+            0% { text-shadow: 2px 0 red, -2px 0 blue; }
+            90% { text-shadow: 0 0 0; }
+            100% { text-shadow: 2px 0 red, -2px 0 blue; }
+        }
+        .loader {
+            border: 4px solid #002200; border-top: 4px solid #0f0;
+            border-radius: 50%; width: 30px; height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen relative">
+
+    <div class="scanlines"></div>
+
+    <div class="glow-box p-8 w-full max-w-md relative z-20 mx-4">
+        
+        <div class="flex items-center gap-4 mb-6 border-b border-green-900 pb-4">
+            <img src="/pic.png" onerror="this.src='https://via.placeholder.com/60/000000/00FF00?text=IMG'" 
+                 class="w-16 h-16 border border-green-500 rounded p-1">
+            <div>
+                <h1 class="text-xl font-bold glitch-text">SILENT HACKERS</h1>
+                <p class="text-xs text-green-700">SYSTEM: ONLINE | RAM: OPTIMIZED</p>
+                <div class="flex items-center gap-2 mt-1">
+                    <span id="ws-status" class="w-2 h-2 bg-red-600 rounded-full"></span>
+                    <span class="text-[10px]" id="ws-text">DISCONNECTED</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="input-section">
+            <label class="text-xs uppercase tracking-widest mb-2 block">> Enter Target Number</label>
+            <div class="flex border border-green-700 mb-4 bg-black">
+                <span class="p-3 text-green-700 border-r border-green-700">+</span>
+                <input type="text" id="phone" placeholder="923001234567" 
+                       class="bg-transparent w-full p-3 outline-none text-green-400 placeholder-green-900">
+            </div>
+
+            <button onclick="initiateSequence()" id="action-btn"
+                    class="w-full bg-green-900/30 hover:bg-green-500/20 border border-green-600 text-green-400 py-3 uppercase tracking-widest text-sm transition-all hover:shadow-[0_0_15px_#0f0]">
+                >> INITIATE PAIRING <<
+            </button>
+        </div>
+
+        <div id="loader-section" class="hidden flex-col items-center py-6">
+            <div class="loader mb-4"></div>
+            <p class="text-xs animate-pulse">> ESTABLISHING SECURE CONNECTION...</p>
+        </div>
+
+        <div id="result-section" class="hidden text-center mt-4">
+            <p class="text-xs text-green-600 mb-2">> SESSION KEY GENERATED:</p>
+            <div class="border border-dashed border-green-500 p-4 bg-green-900/10 cursor-pointer relative group" onclick="copyCode()">
+                <h2 id="pair-code" class="text-3xl font-bold tracking-[5px] text-white"></h2>
+                <div class="absolute inset-0 bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                    <span class="text-xs">[ CLICK TO COPY ]</span>
+                </div>
+            </div>
+            <button onclick="resetUI()" class="mt-4 text-xs underline text-green-800 hover:text-green-500">
+                [ NEW SESSION ]
+            </button>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-green-900 flex justify-between text-[10px] text-green-800">
+            <span>VOL: /data/bot.db</span>
+            <span id="active-bots">ACTIVE: 0</span>
+        </div>
+    </div>
+
+    <script>
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+
+        socket.onopen = () => {
+            document.getElementById('ws-status').classList.replace('bg-red-600', 'bg-green-500');
+            document.getElementById('ws-text').innerText = "LINK ESTABLISHED";
+        };
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if(data.type === 'stats') {
+                document.getElementById('active-bots').innerText = `ACTIVE: ${data.active_bots}`;
+            }
+            if(data.type === 'new_session') {
+                // Optional: Notify UI of new session
+            }
+        };
+
+        async function initiateSequence() {
+            const num = document.getElementById('phone').value.replace(/\D/g, '');
+            if(num.length < 10) return alert(">> ERROR: INVALID NUMBER LENGTH");
+
+            toggleView('loading');
+
+            try {
+                const res = await fetch('/api/pair', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ number: num })
+                });
+                
+                const data = await res.json();
+                
+                if(data.code) {
+                    document.getElementById('pair-code').innerText = data.code;
+                    toggleView('result');
+                } else {
+                    alert(">> ERROR: " + (data.error || "UNKNOWN"));
+                    toggleView('input');
+                }
+            } catch(e) {
+                alert(">> CRITICAL FAILURE: " + e.message);
+                toggleView('input');
+            }
+        }
+
+        function toggleView(state) {
+            document.getElementById('input-section').classList.add('hidden');
+            document.getElementById('loader-section').classList.add('hidden');
+            document.getElementById('result-section').classList.add('hidden');
+
+            if(state === 'input') document.getElementById('input-section').classList.remove('hidden');
+            if(state === 'loading') document.getElementById('loader-section').classList.remove('hidden');
+            if(state === 'result') document.getElementById('result-section').classList.remove('hidden');
+        }
+
+        function copyCode() {
+            const code = document.getElementById('pair-code').innerText;
+            navigator.clipboard.writeText(code);
+            alert(">> DATA COPIED TO CLIPBOARD");
+        }
+
+        function resetUI() {
+            document.getElementById('phone').value = '';
+            toggleView('input');
+        }
+    </script>
+</body>
+</html>
