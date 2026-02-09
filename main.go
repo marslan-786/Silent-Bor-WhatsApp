@@ -20,7 +20,6 @@ import (
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events" // ✅ NEW IMPORT ADDED
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
@@ -48,18 +47,25 @@ var (
 // 🚀 MAIN FUNCTION
 // ==========================================
 func main() {
-	log.Println("🚀 STARTING SYSTEM | FIXED EVENTS...")
+	log.Println("🚀 STARTING NEW BOT STRUCTURE...")
 
+	// 1. Ensure Data Directory
 	if _, err := os.Stat(VolumeDir); os.IsNotExist(err) {
 		_ = os.Mkdir(VolumeDir, 0755)
 	}
 
+	// 2. Initialize Components
 	initDB()
-	InitLIDSystem() // Initialize LID System
-	loadSettings()
+	InitLIDSystem() // lid_system.go
+	loadSettings()  // Load RAM settings
+
+	// 3. Restore Sessions
 	restoreSessions()
 
+	// 4. Background Tasks
 	go autoSaveLoop()
+
+	// 5. Start Server
 	setupRoutes()
 	startServer()
 }
@@ -72,10 +78,13 @@ func initDB() {
 	dbPath := filepath.Join(VolumeDir, DBName)
 	dbLog := waLog.Stdout("Database", "ERROR", true)
 	var err error
+	
+	// ✅ Fixed: Added Context
 	container, err = sqlstore.New(context.Background(), "sqlite3", "file:"+dbPath+"?_foreign_keys=on", dbLog)
 	if err != nil {
 		log.Fatalf("❌ SQLite Init Failed: %v", err)
 	}
+	// ✅ Fixed: Added Context
 	if err = container.Upgrade(context.Background()); err != nil {
 		log.Fatalf("❌ DB Upgrade Failed: %v", err)
 	}
@@ -93,15 +102,19 @@ func setupRoutes() {
 }
 
 func startServer() {
-	server := &http.Server{Addr: ":" + Port}
+	port := os.Getenv("PORT")
+	if port == "" { port = Port }
+
+	server := &http.Server{Addr: ":" + port}
 	
 	go func() {
-		fmt.Printf("🌐 Server Live on Port %s\n", Port)
+		fmt.Printf("🌐 Server Live on Port %s\n", port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("❌ Server Error: %v", err)
 		}
 	}()
 
+	// Graceful Shutdown
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
@@ -121,6 +134,7 @@ func startServer() {
 // ==========================================
 
 func restoreSessions() {
+	// ✅ Fixed: Added Context
 	devices, err := container.GetAllDevices(context.Background())
 	if err != nil { return }
 
@@ -138,22 +152,17 @@ func connectBot(device *store.Device, botID string) {
 		return
 	}
 	
+	// Default Settings
 	if _, ok := sm.Settings[botID]; !ok {
-		sm.Settings[botID] = &BotSettings{Prefix: ".", AlwaysOnline: true}
+		sm.Settings[botID] = &BotSettings{Prefix: ".", AlwaysOnline: true, Mode: "public"}
 	}
 	sm.mu.Unlock()
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "ERROR", true))
 	
-	// 🔥 EVENT HANDLER FIXED HERE
+	// 🔥 Event Handler (No PairStatus logic here to avoid errors)
 	client.AddEventHandler(func(evt interface{}) {
-		HandleMessages(client, evt) // From commands.go
-		
-		// ✅ FIX: Correct Type Assertion
-		if _, ok := evt.(*events.PairStatus); ok {
-			// Save LID on pairing success
-			OnNewPairing(client)
-		}
+		HandleMessages(client, evt) // Calls commands.go
 	})
 
 	if err := client.Connect(); err != nil {
@@ -168,18 +177,26 @@ func connectBot(device *store.Device, botID string) {
 	fmt.Printf("✅ Bot Online: %s\n", botID)
 	broadcastWS(WSMessage{Type: "new_session", BotID: botID})
 	
+	// Keep Alive
 	go func() {
 		for {
 			time.Sleep(1 * time.Minute)
-			if client.IsConnected() && sm.Settings[botID].AlwaysOnline {
-				client.SendPresence(context.Background(), types.PresenceAvailable)
+			if client.IsConnected() {
+				sm.mu.RLock()
+				settings := sm.Settings[botID]
+				sm.mu.RUnlock()
+				
+				if settings != nil && settings.AlwaysOnline {
+					// ✅ Fixed: Added Context
+					client.SendPresence(context.Background(), types.PresenceAvailable)
+				}
 			}
 		}
 	}()
 }
 
 // ==========================================
-// 💾 PERSISTENCE LOGIC
+// 💾 PERSISTENCE LOGIC (RAM <-> DISK)
 // ==========================================
 
 func loadSettings() {
@@ -189,7 +206,7 @@ func loadSettings() {
 		sm.mu.Lock()
 		json.Unmarshal(data, &sm.Settings)
 		sm.mu.Unlock()
-		fmt.Println("📂 Settings Loaded.")
+		fmt.Println("📂 Settings Loaded into RAM.")
 	}
 }
 
@@ -209,10 +226,20 @@ func autoSaveLoop() {
 }
 
 // ==========================================
-// 🌐 API HANDLERS
+// 🌐 API HANDLERS (PAIRING)
 // ==========================================
 
 func handlePair(w http.ResponseWriter, r *http.Request) {
+	// CORS Fix
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	if r.Method == "OPTIONS" { return }
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+
 	var req PairRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", 400)
@@ -222,23 +249,33 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 	number := strings.ReplaceAll(req.Number, "+", "")
 	cleanID := getCleanID(number)
 	
+	// Create New Device
 	device := container.NewDevice()
 	client := whatsmeow.NewClient(device, waLog.Stdout("Pairing", "INFO", true))
 	
+	// Add handler for messages during pairing (optional)
+	client.AddEventHandler(func(evt interface{}) {
+		// Just basic handling if needed
+	})
+
 	if err := client.Connect(); err != nil {
 		http.Error(w, "Connection Failed", 500)
 		return
 	}
 
+	// ✅ Fixed: Added Context
 	code, err := client.PairPhone(context.Background(), number, true, whatsmeow.PairClientChrome, "Linux")
 	if err != nil {
+		client.Disconnect()
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
+	// Wait for Login (Background)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
+		
 		for {
 			select {
 			case <-ctx.Done():
@@ -246,7 +283,16 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 				return
 			default:
 				if client.Store.ID != nil {
+					// 🎉 SUCCESSFUL LOGIN
+					fmt.Printf("🎉 [PAIRED] %s connected!\n", cleanID)
+					
+					// 1. Connect Bot to System
 					connectBot(device, cleanID)
+					
+					// 2. Save LID (Using lid_system.go)
+					// ✅ This is the SAFE way (Old Logic)
+					go OnNewPairing(client)
+					
 					return
 				}
 				time.Sleep(1 * time.Second)
@@ -256,6 +302,10 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(map[string]string{"code": code})
 }
+
+// ==========================================
+// 🔌 WEBSOCKET
+// ==========================================
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -289,6 +339,7 @@ func broadcastWS(msg WSMessage) {
 	}
 }
 
+// Helper
 func getCleanID(s string) string {
 	if strings.Contains(s, ":") {
 		return strings.Split(s, ":")[0]
