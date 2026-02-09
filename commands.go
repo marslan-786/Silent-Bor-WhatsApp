@@ -3,342 +3,502 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
+	"os"
 	"time"
 	"sync"
-
-	"go.mau.fi/whatsmeow"
+    "strconv"
+    
+    "go.mau.fi/whatsmeow"
+	"github.com/showwin/speedtest-go/speedtest"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"google.golang.org/protobuf/proto"
 )
 
-// ⚙️ CONFIGURATION
-const (
-	BotName        = "𝙎𝙞𝙡𝙚𝙣𝙩 𝙃𝙖𝙘𝙠𝙚𝙧𝙨"
-	OwnerName      = "Silent Hackers 🜲"
-	NewsletterID   = "120363424476167116@newsletter"
-	NewsletterName = "Silent Hackers Official"
-)
+var RestrictedGroups = map[string]bool{
+    "120363365896020486@g.us": true,
+    "120363405060081993@g.us": true, 
+}
 
-// 🖼️ GLOBAL IMAGE CACHE
-var (
-	cachedMenuImage *waProto.ImageMessage
-	imgMutex        sync.RWMutex
-	StartTime       = time.Now()
-)
+var replyChannels = make(map[string]chan string)
+var replyMutex sync.RWMutex
 
-// ==========================================
-// 🚀 MAIN HANDLER
-// ==========================================
+var AuthorizedBots = map[string]bool{
+    "923017552805": true,
+    "923116573691": true,
+}
 
-func HandleMessages(client *whatsmeow.Client, evt interface{}) {
-	switch v := evt.(type) {
-	case *events.Message:
-		// 1. Time Check
-		if time.Since(v.Info.Timestamp) > 60*time.Second { return }
+// ════════════════════════════════════════════════════════════════
+// 🔗 MAIN HANDLER HOOK (Fixes Missing Handler Issue)
+// ════════════════════════════════════════════════════════════════
 
-		// 2. Extract Body
-		body := getText(v.Message)
-		if body == "" { return }
-
-		// 3. Get Bot ID & Settings
-		rawBotID := client.Store.ID.User
-		botID := getCleanID(rawBotID) // ✅ Used from main.go
-		
-		// 4. Dynamic Prefix
-		prefix := "." 
-		sm.mu.RLock()
-		if sm.Settings[botID] != nil && sm.Settings[botID].Prefix != "" {
-			prefix = sm.Settings[botID].Prefix
-		}
-		sm.mu.RUnlock()
-
-		// 5. Check Prefix
-		if !strings.HasPrefix(body, prefix) { return }
-
-		// 6. Parse Command
-		args := strings.Fields(body[len(prefix):])
-		cmd := strings.ToLower(args[0])
-		fullArgs := strings.Join(args[1:], " ")
-		_ = fullArgs // ✅ Fix: Handle Unused Variable
-
-		// 🔍 Log
-		fmt.Printf("🤖 CMD: %s | User: %s\n", cmd, v.Info.Sender.User)
-
-		// 7. 🚦 ROUTER
-		switch cmd {
-
-		// ➤ MENU & HELP
-		case "menu", "help", "list":
-			go DoReact(client, v, "📂")
-			SendMenu(client, v, prefix, botID)
-
-		// ====================================================
-		// 👑 OWNER CONTROL
-		// ====================================================
-		
-		case "setprefix":
-			go DoReact(client, v, "⚙️")
-			if !isOwner(client, v.Info.Sender) { return }
-			HandleSetPrefix(client, v, args)
-
-		case "mode":
-			go DoReact(client, v, "🛡️")
-			if !isOwner(client, v.Info.Sender) { return }
-			HandleMode(client, v, args)
-
-		case "alwaysonline":
-			go DoReact(client, v, "🟢")
-			if !isOwner(client, v.Info.Sender) { return }
-			HandleToggle(client, v, "alwaysonline")
-
-		case "autoread":
-			go DoReact(client, v, "👁️")
-			if !isOwner(client, v.Info.Sender) { return }
-			HandleToggle(client, v, "autoread")
-
-		case "autoreact":
-			go DoReact(client, v, "💖")
-			if !isOwner(client, v.Info.Sender) { return }
-			HandleToggle(client, v, "autoreact")
-
-		case "autostatus":
-			go DoReact(client, v, "📺")
-			if !isOwner(client, v.Info.Sender) { return }
-			HandleToggle(client, v, "autostatus")
-
-		case "statusreact":
-			go DoReact(client, v, "🔥")
-			if !isOwner(client, v.Info.Sender) { return }
-			HandleToggle(client, v, "statusreact")
-			
-		case "stats":
-			go DoReact(client, v, "📊")
-			HandleStats(client, v)
-
-		case "listbots":
-			go DoReact(client, v, "🤖")
-			if !isOwner(client, v.Info.Sender) { return }
-			HandleListBots(client, v)
-
-		case "sd", "delete-session":
-			go DoReact(client, v, "💀")
-			if !isOwner(client, v.Info.Sender) { return }
-			HandleDeleteSession(client, v, args)
-
-		// ====================================================
-		// 🛡️ GROUP ADMINISTRATION
-		// ====================================================
-		
-		case "kick":
-			go DoReact(client, v, "👢")
-			HandleKick(client, v, args)
-
-		case "add":
-			go DoReact(client, v, "➕")
-			HandleAdd(client, v, args)
-
-		case "promote":
-			go DoReact(client, v, "⬆️")
-			HandlePromote(client, v, args)
-
-		case "demote":
-			go DoReact(client, v, "⬇️")
-			HandleDemote(client, v, args)
-
-		case "tagall":
-			go DoReact(client, v, "📣")
-			if isAdmin(client, v.Info.Chat, v.Info.Sender) {
-				HandleTagAll(client, v, args)
-			}
-
-		case "hidetag":
-			go DoReact(client, v, "👻")
-			if isAdmin(client, v.Info.Chat, v.Info.Sender) {
-				HandleHideTag(client, v, args)
-			}
-
-		case "group":
-			go DoReact(client, v, "🔒")
-			HandleGroupSettings(client, v, args)
-
-		case "del", "delete":
-			go DoReact(client, v, "🗑️")
-			HandleDelete(client, v)
-			
-		default:
-			// Ignore unknown
-		}
+// ✅ یہ فنکشن main.go کو commands.go سے جوڑتا ہے
+func EventHandler(client *whatsmeow.Client) func(interface{}) {
+	return func(evt interface{}) {
+		handler(client, evt)
 	}
 }
 
-// ✅ Fix: Helper Functions
-func DoReact(client *whatsmeow.Client, v *events.Message, emoji string) {
+// ════════════════════════════════════════════════════════════════
+// ⚙️ CORE HANDLER LOGIC
+// ════════════════════════════════════════════════════════════════
+
+func handler(botClient *whatsmeow.Client, evt interface{}) {
 	defer func() {
-		if r := recover(); r != nil { fmt.Printf("React Error: %v\n", r) }
+		if r := recover(); r != nil {
+			bot := "unknown"
+			if botClient != nil && botClient.Store != nil && botClient.Store.ID != nil {
+				bot = botClient.Store.ID.User
+			}
+			fmt.Printf("⚠️ [CRASH PREVENTED] Bot %s error: %v\n", bot, r)
+		}
 	}()
 
-	client.SendMessage(context.Background(), v.Info.Chat, &waProto.Message{
-		ReactionMessage: &waProto.ReactionMessage{
-			Key: &waProto.MessageKey{
-				RemoteJID: proto.String(v.Info.Chat.String()),
-				ID:        proto.String(v.Info.ID),
-				FromMe:    proto.Bool(false),
-			},
-			Text:              proto.String(emoji),
-			SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
-		},
-	})
+	if botClient == nil {
+		return
+	}
+
+	// go ListenForFeatures(botClient, evt) // اگر فیچرز فائل موجود ہے تو ان کمنٹ کریں
+
+	switch v := evt.(type) {
+
+	case *events.Message:
+		// پرانے میسجز اگنور کریں (1 منٹ سے زیادہ پرانے)
+		if time.Since(v.Info.Timestamp) > 1*time.Minute {
+			return
+		}
+
+		botID := "unknown"
+		if botClient.Store != nil && botClient.Store.ID != nil {
+			botID = getCleanID(botClient.Store.ID.User)
+		}
+
+		// ✅ Save Message to Mongo (Background)
+		go func() {
+			saveMessageToMongo(
+				botClient,
+				botID,
+				v.Info.Chat.String(),
+				v.Info.Sender,
+				v.Message,
+				v.Info.IsFromMe,
+				uint64(v.Info.Timestamp.Unix()),
+			)
+		}()
+
+		// 🛑 Status Check
+		if v.Info.Chat.String() == "status@broadcast" {
+			return
+		}
+
+		// Process Commands
+		go processMessage(botClient, v)
+
+	case *events.Connected:
+		if botClient.Store != nil && botClient.Store.ID != nil {
+			fmt.Printf("🟢 [ONLINE] Bot %s connected!\n", botClient.Store.ID.User)
+		}
+	}
 }
 
-func SendMenu(client *whatsmeow.Client, v *events.Message, p string, botID string) {
-	pushName := v.Info.PushName
-	if pushName == "" { pushName = "User" }
+// ⚡ PERMISSION CHECK
+func canExecute(client *whatsmeow.Client, v *events.Message, cmd string) bool {
+	// 1. Owner Check
+	if isOwner(client, v.Info.Sender) { return true }
 	
-	uptime := time.Since(StartTime).Round(time.Second)
-	uptimeStr := fmt.Sprintf("%s", uptime)
+	// 2. Private Chat Check
+	if !v.Info.IsGroup { return true }
 
-	mode := "PUBLIC"
-	sm.mu.RLock()
-	if sm.Settings[botID] != nil && sm.Settings[botID].Mode != "" {
-		mode = strings.ToUpper(sm.Settings[botID].Mode)
-	}
-	sm.mu.RUnlock()
-
-	menuText := fmt.Sprintf(`
-░▀█▀░█▀█░█▀█░█░░░█▀
-░░█░░█░█░█░█░█░░░▀▀
-░░▀░░▀▀▀░▀▀▀░▀▀▀░▀▀
-
-💀 𝗨𝗦𝗘𝗥: *%s*
-🛡 𝗠𝗢𝗗𝗘: *%s*
-⏳ 𝗨𝗣𝗧𝗜𝗠𝗘: *%s*
-
-[ ☠️ ] ──── 𝗚𝗥𝗢𝗨𝗣𝗦 ────
-│
-│ ⦿ *%skick* ➔ 𝘒𝘪𝘤𝘬 𝘜𝘴𝘦𝘳
-│ ⦿ *%sadd* ➔ 𝘈𝘥𝘥 𝘜𝘴𝘦𝘳
-│ ⦿ *%spromote* ➔ 𝘔𝘢𝘬𝘦 𝘈𝘥𝘮𝘪𝘯
-│ ⦿ *%sdemote* ➔ 𝘙𝘦𝘮𝘰𝘷𝘦 𝘈𝘥𝘮𝘪𝘯
-│ ⦿ *%shidetag* ➔ 𝘏𝘪𝘥𝘥𝘦𝘯 𝘛𝘢𝘨
-│ ⦿ *%stagall* ➔ 𝘛𝘢𝘨 𝘌𝘷𝘦𝘳𝘺𝘰𝘯𝘦
-│ ⦿ *%sgroup* ➔ 𝘖𝘱𝘦𝘯/𝘊𝘭𝘰𝘴𝘦
-│ ⦿ *%sdel* ➔ 𝘋𝘦𝘭𝘦𝘵𝘦 𝘔𝘴𝘨
-│
-[ 👑 ] ──── 𝗢𝗪𝗡𝗘𝗥 ────
-│
-│ ⦿ *%ssetprefix* ➔ 𝘊𝘩𝘢𝘯𝘨𝘦 𝘗𝘳𝘦𝘧𝘪𝘹
-│ ⦿ *%smode* ➔ 𝘊𝘩𝘢𝘯𝘨𝘦 𝘔𝘰𝘥𝘦
-│ ⦿ *%salwaysonline* ➔ 𝘈𝘭𝘸𝘢𝘺𝘴 𝘖𝘯
-│ ⦿ *%sautoread* ➔ 𝘈𝘶𝘵𝘰 𝘙𝘦𝘢𝘥
-│ ⦿ *%sautoreact* ➔ 𝘈𝘶𝘵𝘰 𝘙𝘦𝘢𝘤𝘵
-│ ⦿ *%sautostatus* ➔ 𝘈𝘶𝘵𝘰 𝘚𝘵𝘢𝘵𝘶𝘴
-│ ⦿ *%sstatusreact* ➔ 𝘚𝘵𝘢𝘵𝘶𝘴 𝘓𝘪𝘬𝘦
-│ ⦿ *%ssd* ➔ 𝘚𝘦𝘴𝘴𝘪𝘰𝘯 𝘋𝘦𝘭𝘦𝘵𝘦
-│
-╰────────────── [ 💀 ]
-`, pushName, mode, uptimeStr,
-	p, p, p, p, p, p, p, p,
-	p, p, p, p, p, p, p, p)
-
-	imgMutex.RLock()
-	cached := cachedMenuImage
-	imgMutex.RUnlock()
-
-	if cached != nil {
-		SendImage(client, v, cached, menuText)
-		return
-	}
-
-	imgData, err := os.ReadFile("pic.png")
-	if err != nil {
-		ReplyMessage(client, v, menuText)
-		return
-	}
-
-	resp, err := client.Upload(context.Background(), imgData, whatsmeow.MediaImage)
-	if err != nil {
-		ReplyMessage(client, v, menuText)
-		return
-	}
-
-	newImg := &waProto.ImageMessage{
-		URL:           proto.String(resp.URL),
-		DirectPath:    proto.String(resp.DirectPath),
-		MediaKey:      resp.MediaKey,
-		Mimetype:      proto.String("image/png"),
-		FileEncSHA256: resp.FileEncSHA256,
-		FileSHA256:    resp.FileSHA256,
-		FileLength:    proto.Uint64(uint64(len(imgData))),
-	}
-
-	imgMutex.Lock()
-	cachedMenuImage = newImg
-	imgMutex.Unlock()
-
-	SendImage(client, v, newImg, menuText)
+	// 3. Group Checks
+	rawBotID := client.Store.ID.User
+	botID := getCleanID(rawBotID)
+	
+	s := getGroupSettings(botID, v.Info.Chat.String())
+	
+	if s.Mode == "private" { return false }
+	if s.Mode == "admin" { return isAdmin(client, v.Info.Chat, v.Info.Sender) }
+	
+	return true
 }
 
-func ReplyMessage(client *whatsmeow.Client, v *events.Message, text string) {
-	contextInfo := &waProto.ContextInfo{
+// ⚡ MAIN MESSAGE PROCESSOR
+func processMessage(client *whatsmeow.Client, v *events.Message) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("⚠️ Critical Panic: %v\n", r)
+		}
+	}()
+
+	// 1. Extract Text
+	bodyRaw := getText(v.Message)
+	isAudio := v.Message.GetAudioMessage() != nil 
+
+	if bodyRaw == "" && !isAudio {
+		return
+	}
+	bodyClean := strings.TrimSpace(bodyRaw)
+
+	// 2. Bot ID Info
+	rawBotID := client.Store.ID.User
+	botID := getCleanID(rawBotID)
+
+	// 3. Variables
+	chatID := v.Info.Chat.String()
+	senderID := v.Info.Sender.ToNonAD().String()
+
+	// 4. Prefix Check
+	prefix := getPrefix(botID)
+	isCommand := strings.HasPrefix(bodyClean, prefix)
+
+	// 🔥 GLOBAL SETTINGS (RAM)
+	dataMutex.RLock()
+	doRead := data.AutoRead
+	doReact := data.AutoReact
+	dataMutex.RUnlock()
+
+	// 🚀 BACKGROUND TASKS
+	go func() {
+		// A. Reply Interceptor (For Setup/Download Wizards)
+		replyMutex.RLock()
+		ch, waiting := replyChannels[senderID]
+		replyMutex.RUnlock()
+
+		if waiting {
+			if bodyClean != "" {
+				ch <- bodyClean
+				replyMutex.Lock()
+				delete(replyChannels, senderID)
+				replyMutex.Unlock()
+				return
+			}
+		}
+
+		// B. Auto Read/React
+		if doRead || doReact {
+			if doRead {
+				client.MarkRead(context.Background(), []types.MessageID{v.Info.ID}, v.Info.Timestamp, v.Info.Chat, v.Info.Sender)
+			}
+			if doReact {
+				shouldReact := !v.Info.IsGroup
+				if v.Info.IsGroup && (strings.Contains(bodyClean, "@"+botID) || isCommand) {
+					shouldReact = true
+				}
+				if shouldReact {
+					// react(client, v.Info.Chat, v.Info.ID, "❤️") // Optional
+				}
+			}
+		}
+
+		// C. Command Handling
+		if !isCommand {
+			return
+		}
+
+		msgWithoutPrefix := strings.TrimPrefix(bodyClean, prefix)
+		words := strings.Fields(msgWithoutPrefix)
+		if len(words) == 0 { return }
+
+		cmd := strings.ToLower(words[0])
+		var args []string
+		if len(words) > 1 { args = words[1:] }
+		fullArgs := strings.TrimSpace(strings.Join(args, " "))
+		
+		if !canExecute(client, v, cmd) { return }
+
+		fmt.Printf("🚀 [EXEC] Bot:%s | CMD:%s\n", botID, cmd)
+
+		// 🔥 COMMAND SWITCH 🔥
+		switch cmd {
+
+		// ✅ MENU COMMAND (ADDED HERE)
+		case "menu", "help", "list":
+			react(client, v.Info.Chat, v.Info.ID, "📂")
+			sendMenu(client, v)
+
+		case "ping":
+			react(client, v.Info.Chat, v.Info.ID, "⚡")
+			sendPing(client, v)
+		
+		case "id":
+			react(client, v.Info.Chat, v.Info.ID, "🆔")
+			sendID(client, v)
+
+		case "owner":
+			react(client, v.Info.Chat, v.Info.ID, "👑")
+			sendOwner(client, v)
+		
+		case "listbots":
+			react(client, v.Info.Chat, v.Info.ID, "🤖")
+			sendBotsList(client, v)
+
+		// ⚙️ SETTINGS
+		case "setprefix":
+			if !isOwner(client, v.Info.Sender) { return }
+			if fullArgs == "" {
+				replyMessage(client, v, "⚠️ Usage: .setprefix !")
+				return
+			}
+			updatePrefixDB(botID, fullArgs)
+			replyMessage(client, v, fmt.Sprintf("✅ Prefix updated to [%s]", fullArgs))
+
+		case "mode":
+			if !isOwner(client, v.Info.Sender) { return }
+			handleMode(client, v, args)
+
+		case "alwaysonline":
+			if !isOwner(client, v.Info.Sender) { return }
+			toggleAlwaysOnline(client, v)
+
+		// 🛡️ ADMIN / GROUP
+		case "kick":
+			handleKick(client, v, args)
+		case "add":
+			handleAdd(client, v, args)
+		case "tagall":
+			handleTagAll(client, v, args)
+		case "hidetag":
+			handleHideTag(client, v, args)
+		case "group":
+			handleGroup(client, v, args)
+		case "del", "delete":
+			handleDelete(client, v)
+
+		// 🛠️ TOOLS
+		case "tr", "translate":
+			handleTranslate(client, v, args)
+		case "sticker", "s":
+			handleToSticker(client, v)
+		case "toimg":
+			handleToImg(client, v)
+		case "tourl":
+			handleToURL(client, v)
+
+		// 📥 DOWNLOADERS
+		case "yt", "youtube":
+			if fullArgs == "" {
+				replyMessage(client, v, "⚠️ Send Link")
+				return
+			}
+			handleYTDownloadMenu(client, v, fullArgs)
+		
+		case "tt", "tiktok":
+			handleTikTok(client, v, fullArgs)
+		case "fb", "facebook":
+			handleFacebook(client, v, fullArgs)
+		case "ig", "insta":
+			handleInstagram(client, v, fullArgs)
+
+		// 🔐 PRIVATE / OTP
+		case "nset":
+			HandleNSet(client, v, args)
+		case "num":
+			HandleGetNumber(client, v, args)
+		case "code":
+			HandleGetOTP(client, v, args)
+		case "sd":
+			handleSessionDelete(client, v, args)
+		}
+	}()
+}
+
+// ════════════════════════════════════════════════════════════════
+// 🎨 MENU SENDER
+// ════════════════════════════════════════════════════════════════
+
+func sendMenu(client *whatsmeow.Client, v *events.Message) {
+	// 📢 چینل کی سیٹنگز
+	newsletterID := "120363424476167116@newsletter"
+	newsletterName := "Silent Hackers Official"
+
+	uptimeStr := getFormattedUptime()
+	rawBotID := client.Store.ID.User
+	botID := getCleanID(rawBotID)
+	p := getPrefix(botID)
+	
+	s := getGroupSettings(botID, v.Info.Chat.String())
+	currentMode := strings.ToUpper(s.Mode)
+	if !v.Info.IsGroup { currentMode = "PRIVATE" }
+
+	// مینیو ڈیزائن
+	menu := fmt.Sprintf(`
+      ｡ﾟﾟ･｡･ﾟﾟ｡
+      ﾟ。    %s
+      　ﾟ･｡･ﾟ
+  
+ 👑 𝐎𝐰𝐧𝐞𝐫 : %s
+ 🛡️ 𝐌𝐨𝐝𝐞 : %s
+ ⏳ 𝐔𝐩𝐭𝐢𝐦𝐞 : %s
+
+   ⋆ 🎀 ⋆ ──── ⋆ 🎀 ⋆
+
+ ╭── 🍭 𝐃𝐨𝐰𝐧𝐥𝐨𝐚𝐝𝐬 🍭 ──╮
+ │ ❥ *%sdl* - Direct File/Link
+ │ ❥ *%syt* - YouTube Video
+ │ ❥ *%stt* - TikTok (No WM)
+ │ ❥ *%sfb* - Facebook
+ │ ❥ *%sig* - Instagram
+ ╰───────────────╯
+
+ ╭── ✨ 𝐌𝐚𝐠𝐢𝐜 𝐓𝐨𝐨𝐥𝐬 ✨ ──╮
+ │ ❥ *%sai* - Gemini Chat
+ │ ❥ *%str* - Translate
+ │ ❥ *%sremini* - Enhance
+ │ ❥ *%sremovebg* - Remove BG
+ ╰───────────────╯
+
+ ╭── 🎨 𝐄𝐝𝐢𝐭𝐢𝐧𝐠 ──╮
+ │ ❥ *%ssticker* - Sticker
+ │ ❥ *%stoimg* - To Image
+ │ ❥ *%stourl* - To URL
+ ╰───────────────╯
+
+ ╭── 🛡️ 𝐆𝐫𝐨𝐮𝐩 ──╮
+ │ ❥ *%skick* - Kick
+ │ ❥ *%sadd* - Add
+ │ ❥ *%stagall* - Tag All
+ │ ❥ *%shidetag* - Hide Tag
+ │ ❥ *%sgroup* - Open/Close
+ ╰───────────────╯
+
+ ╭── 👑 𝐎𝐰𝐧𝐞𝐫 ──╮
+ │ ❥ *%ssetprefix* - Prefix
+ │ ❥ *%salwaysonline* - Always On
+ │ ❥ *%slistbots* - List Bots
+ │ ❥ *%ssd* - Session Del
+ │ ❥ *%snum* - Get Number
+ ╰───────────────╯
+
+      💖 𝙎𝙞𝙡𝙚𝙣𝙩 𝙃𝙖𝙘𝙠𝙚𝙧𝙨 💖
+`,
+		BOT_NAME, OWNER_NAME, currentMode, uptimeStr,
+		p, p, p, p, p, // Downloads
+		p, p, p, p,    // AI
+		p, p, p,       // Editing
+		p, p, p, p, p, // Group
+		p, p, p, p, p, // Owner
+	)
+
+	// Context for Reply
+	replyContext := &waProto.ContextInfo{
 		StanzaID:      proto.String(v.Info.ID),
 		Participant:   proto.String(v.Info.Sender.String()),
 		QuotedMessage: v.Message,
 		IsForwarded:   proto.Bool(true),
 		ForwardedNewsletterMessageInfo: &waProto.ForwardedNewsletterMessageInfo{
-			NewsletterJID:   proto.String(NewsletterID),
-			NewsletterName:  proto.String(NewsletterName),
+			NewsletterJID:   proto.String(newsletterID),
+			NewsletterName:  proto.String(newsletterName),
 			ServerMessageID: proto.Int32(100),
 		},
 	}
 
+	// 1. Try Cached Image
+	if cachedMenuImage != nil {
+		imgMsg := *cachedMenuImage 
+		imgMsg.Caption = proto.String(menu)
+		imgMsg.ContextInfo = replyContext 
+		client.SendMessage(context.Background(), v.Info.Chat, &waProto.Message{ImageMessage: &imgMsg})
+		return
+	}
+
+	// 2. Upload Image
+	imgData, err := os.ReadFile("pic.png")
+	if err == nil {
+		uploadResp, err := client.Upload(context.Background(), imgData, whatsmeow.MediaImage)
+		if err == nil {
+			cachedMenuImage = &waProto.ImageMessage{
+				URL:           proto.String(uploadResp.URL),
+				DirectPath:    proto.String(uploadResp.DirectPath),
+				MediaKey:      uploadResp.MediaKey,
+				Mimetype:      proto.String("image/png"),
+				FileEncSHA256: uploadResp.FileEncSHA256,
+				FileSHA256:    uploadResp.FileSHA256,
+				FileLength:    proto.Uint64(uint64(len(imgData))),
+			}
+			imgMsg := *cachedMenuImage
+			imgMsg.Caption = proto.String(menu)
+			imgMsg.ContextInfo = replyContext
+			client.SendMessage(context.Background(), v.Info.Chat, &waProto.Message{ImageMessage: &imgMsg})
+			return
+		}
+	}
+
+	// 3. Fallback Text
 	client.SendMessage(context.Background(), v.Info.Chat, &waProto.Message{
 		ExtendedTextMessage: &waProto.ExtendedTextMessage{
-			Text:        proto.String(text),
-			ContextInfo: contextInfo,
+			Text: proto.String(menu),
+			ContextInfo: replyContext,
 		},
 	})
 }
 
-func SendImage(client *whatsmeow.Client, v *events.Message, img *waProto.ImageMessage, caption string) {
-	msgToSend := *img
-	msgToSend.Caption = proto.String(caption)
-	msgToSend.ContextInfo = &waProto.ContextInfo{
-		StanzaID:      proto.String(v.Info.ID),
-		Participant:   proto.String(v.Info.Sender.String()),
-		QuotedMessage: v.Message,
-		IsForwarded:   proto.Bool(true),
-		ForwardedNewsletterMessageInfo: &waProto.ForwardedNewsletterMessageInfo{
-			NewsletterJID:   proto.String(NewsletterID),
-			NewsletterName:  proto.String(NewsletterName),
-			ServerMessageID: proto.Int32(100),
-		},
+// ════════════════════════════════════════════════════════════════
+// 🔧 UTILS
+// ════════════════════════════════════════════════════════════════
+
+func getPrefix(botID string) string {
+	prefixMutex.RLock()
+	p, exists := botPrefixes[botID]
+	prefixMutex.RUnlock()
+	if exists { return p }
+	// Redis Fallback
+	if rdb != nil {
+		val, err := rdb.Get(context.Background(), "prefix:"+botID).Result()
+		if err == nil && val != "" {
+			prefixMutex.Lock()
+			botPrefixes[botID] = val
+			prefixMutex.Unlock()
+			return val
+		}
 	}
+	return "." 
+}
+
+func getCleanID(jidStr string) string {
+	if jidStr == "" { return "unknown" }
+	parts := strings.Split(jidStr, "@")
+	if len(parts) == 0 { return "unknown" }
+	userPart := parts[0]
+	if strings.Contains(userPart, ":") {
+		userPart = strings.Split(userPart, ":")[0]
+	}
+	return strings.TrimSpace(userPart)
+}
+
+func replyMessage(client *whatsmeow.Client, v *events.Message, text string) {
 	client.SendMessage(context.Background(), v.Info.Chat, &waProto.Message{
-		ImageMessage: &msgToSend,
+		ExtendedTextMessage: &waProto.ExtendedTextMessage{
+			Text: proto.String(text),
+			ContextInfo: &waProto.ContextInfo{
+				StanzaID:      proto.String(v.Info.ID),
+				Participant:   proto.String(v.Info.Sender.String()),
+				QuotedMessage: v.Message,
+			},
+		},
 	})
+}
+
+func react(client *whatsmeow.Client, chat types.JID, msgID types.MessageID, emoji string) {
+	go func() {
+		client.SendMessage(context.Background(), chat, &waProto.Message{
+			ReactionMessage: &waProto.ReactionMessage{
+				Key: &waProto.MessageKey{
+					RemoteJID: proto.String(chat.String()),
+					ID:        proto.String(string(msgID)),
+					FromMe:    proto.Bool(false),
+				},
+				Text:              proto.String(emoji),
+				SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+			},
+		})
+	}()
 }
 
 func getText(m *waProto.Message) string {
-	if m == nil { return "" }
 	if m.Conversation != nil { return *m.Conversation }
-	if m.ExtendedTextMessage != nil { return *m.ExtendedTextMessage.Text }
-	if m.ImageMessage != nil { return *m.ImageMessage.Caption }
+	if m.ExtendedTextMessage != nil && m.ExtendedTextMessage.Text != nil { return *m.ExtendedTextMessage.Text }
+	if m.ImageMessage != nil && m.ImageMessage.Caption != nil { return *m.ImageMessage.Caption }
+	if m.VideoMessage != nil && m.VideoMessage.Caption != nil { return *m.VideoMessage.Caption }
 	return ""
-}
-
-// ✅ Fix: Use isOwnerByLID from lid_system.go
-func isOwner(client *whatsmeow.Client, sender types.JID) bool {
-	if client.Store.ID != nil && client.Store.ID.User == sender.User {
-		return true
-	}
-	return isOwnerByLID(client, sender) 
-}
-
-func isAdmin(client *whatsmeow.Client, chat, sender types.JID) bool {
-	if chat.Server != "g.us" { return true } // ✅ Fixed Server Check
-	return true // Placeholder
 }
