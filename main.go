@@ -20,6 +20,7 @@ import (
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events" // ✅ NEW IMPORT ADDED
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
@@ -47,7 +48,7 @@ var (
 // 🚀 MAIN FUNCTION
 // ==========================================
 func main() {
-	log.Println("🚀 STARTING SYSTEM | CONTEXT FIXED...")
+	log.Println("🚀 STARTING SYSTEM | FIXED EVENTS...")
 
 	if _, err := os.Stat(VolumeDir); os.IsNotExist(err) {
 		_ = os.Mkdir(VolumeDir, 0755)
@@ -71,12 +72,10 @@ func initDB() {
 	dbPath := filepath.Join(VolumeDir, DBName)
 	dbLog := waLog.Stdout("Database", "ERROR", true)
 	var err error
-	// ✅ FIX: Added context.Background()
 	container, err = sqlstore.New(context.Background(), "sqlite3", "file:"+dbPath+"?_foreign_keys=on", dbLog)
 	if err != nil {
 		log.Fatalf("❌ SQLite Init Failed: %v", err)
 	}
-	// ✅ FIX: Added context.Background()
 	if err = container.Upgrade(context.Background()); err != nil {
 		log.Fatalf("❌ DB Upgrade Failed: %v", err)
 	}
@@ -122,7 +121,6 @@ func startServer() {
 // ==========================================
 
 func restoreSessions() {
-	// ✅ FIX: Added context.Background()
 	devices, err := container.GetAllDevices(context.Background())
 	if err != nil { return }
 
@@ -146,12 +144,15 @@ func connectBot(device *store.Device, botID string) {
 	sm.mu.Unlock()
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "ERROR", true))
+	
+	// 🔥 EVENT HANDLER FIXED HERE
 	client.AddEventHandler(func(evt interface{}) {
 		HandleMessages(client, evt) // From commands.go
-		if evt, ok := evt.(*whatsmeow.PairStatusEvent); ok {
-			// Save LID on pairing
+		
+		// ✅ FIX: Correct Type Assertion
+		if _, ok := evt.(*events.PairStatus); ok {
+			// Save LID on pairing success
 			OnNewPairing(client)
-			_ = evt
 		}
 	})
 
@@ -171,7 +172,6 @@ func connectBot(device *store.Device, botID string) {
 		for {
 			time.Sleep(1 * time.Minute)
 			if client.IsConnected() && sm.Settings[botID].AlwaysOnline {
-				// ✅ FIX: Added context.Background()
 				client.SendPresence(context.Background(), types.PresenceAvailable)
 			}
 		}
@@ -230,7 +230,6 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ FIX: Added context.Background() as first argument
 	code, err := client.PairPhone(context.Background(), number, true, whatsmeow.PairClientChrome, "Linux")
 	if err != nil {
 		http.Error(w, err.Error(), 500)

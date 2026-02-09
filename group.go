@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+//	"fmt"
 	"strings"
 
 	"go.mau.fi/whatsmeow"
