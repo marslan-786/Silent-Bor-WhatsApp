@@ -2,168 +2,162 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TERMINAL ACCESS /// V4.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>𝙎𝙞𝙡𝙚𝙣𝙩 𝙃𝙖𝙘𝙠𝙚𝙧𝙨 Pairing</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            background-color: #000;
-            color: #0f0;
-            font-family: 'JetBrains Mono', monospace;
+        body { 
+            background-color: #050505;
+            background-image: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000000 100%);
+            color: white; 
+            font-family: 'Rajdhani', sans-serif;
             overflow: hidden;
         }
-        .scanlines {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
-            background-size: 100% 4px;
-            pointer-events: none;
-            z-index: 10;
+        .full-screen { min-height: 100vh; width: 100vw; display: flex; align-items: center; justify-content: center; }
+        .glass-card { 
+            background: rgba(20, 20, 20, 0.6); 
+            backdrop-filter: blur(15px); 
+            border: 1px solid rgba(255, 255, 255, 0.08); 
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.05);
+            width: 100%;
+            max-width: 420px;
+            border-radius: 24px; 
+            padding: 40px 30px; 
+            position: relative;
+            overflow: hidden;
         }
-        .glow-box {
-            box-shadow: 0 0 10px #0f0, inset 0 0 10px #0f0;
-            border: 1px solid #0f0;
-            background: rgba(0, 20, 0, 0.9);
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, cyan, transparent);
+            opacity: 0.5;
         }
-        .glitch-text {
-            animation: glitch 1s infinite;
+        .neon-text { text-shadow: 0 0 15px rgba(0, 255, 255, 0.5); }
+        .input-field {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #333;
+            transition: 0.3s;
         }
-        @keyframes glitch {
-            0% { text-shadow: 2px 0 red, -2px 0 blue; }
-            90% { text-shadow: 0 0 0; }
-            100% { text-shadow: 2px 0 red, -2px 0 blue; }
+        .input-field:focus {
+            border-color: cyan;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
         }
-        .loader {
-            border: 4px solid #002200; border-top: 4px solid #0f0;
-            border-radius: 50%; width: 30px; height: 30px;
-            animation: spin 1s linear infinite;
+        .action-btn {
+            background: linear-gradient(45deg, #00d2ff, #3a7bd5);
+            box-shadow: 0 0 20px rgba(0, 210, 255, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .action-btn:active { transform: scale(0.98); }
     </style>
 </head>
-<body class="flex items-center justify-center h-screen relative">
+<body class="full-screen">
 
-    <div class="scanlines"></div>
+    <div class="glass-card text-center">
+        <div class="absolute top-4 right-4 flex items-center space-x-2">
+            <span class="text-[10px] text-gray-500 tracking-wider">SYSTEM</span>
+            <div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_green]"></div>
+        </div>
 
-    <div class="glow-box p-8 w-full max-w-md relative z-20 mx-4">
-        
-        <div class="flex items-center gap-4 mb-6 border-b border-green-900 pb-4">
-            <img src="/pic.png" onerror="this.src='https://via.placeholder.com/60/000000/00FF00?text=IMG'" 
-                 class="w-16 h-16 border border-green-500 rounded p-1">
-            <div>
-                <h1 class="text-xl font-bold glitch-text">SILENT HACKERS</h1>
-                <p class="text-xs text-green-700">SYSTEM: ONLINE | RAM: OPTIMIZED</p>
-                <div class="flex items-center gap-2 mt-1">
-                    <span id="ws-status" class="w-2 h-2 bg-red-600 rounded-full"></span>
-                    <span class="text-[10px]" id="ws-text">DISCONNECTED</span>
+        <div class="flex justify-center mb-6">
+            <div class="p-1 rounded-full border border-cyan-500/30">
+                <img src="/pic.png" onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/8/89/Portrait_Placeholder.png'" class="w-24 h-24 rounded-full object-cover shadow-2xl">
+            </div>
+        </div>
+
+        <h1 class="text-3xl font-bold tracking-[6px] text-white mb-1 neon-text">𝙎𝙞𝙡𝙚𝙣𝙩 𝙃𝙖𝙘𝙠𝙚𝙧𝙨</h1>
+        <p class="text-cyan-500/70 text-xs tracking-[3px] uppercase mb-8">Multi-Device Pairing</p>
+
+        <div class="space-y-5">
+            <div class="relative group">
+                <input type="text" id="phone-num" placeholder="923001234567" 
+                    class="input-field w-full p-4 rounded-xl text-center text-xl font-mono text-white placeholder-gray-600 outline-none">
+                <p class="text-[10px] text-gray-500 mt-2">ENTER NUMBER WITHOUT +</p>
+            </div>
+
+            <button onclick="pairNow()" id="pair-btn" 
+                class="action-btn w-full py-4 rounded-xl font-bold text-black tracking-widest hover:brightness-110">
+                CONNECT NOW
+            </button>
+        </div>
+
+        <div id="code-section" class="hidden mt-8 pt-6 border-t border-white/5 animate-pulse">
+            <p class="text-[10px] text-cyan-400 font-bold mb-2 uppercase tracking-widest">Pairing Code Generated</p>
+            <div onclick="copyCode()" class="cursor-pointer bg-black/60 border border-cyan-500/30 rounded-xl p-4 relative group">
+                <h2 id="display-code" class="text-3xl font-mono font-black text-white tracking-wider">...</h2>
+                <div class="absolute inset-0 flex items-center justify-center bg-black/80 text-cyan-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+                    CLICK TO COPY
                 </div>
             </div>
         </div>
 
-        <div id="input-section">
-            <label class="text-xs uppercase tracking-widest mb-2 block">> Enter Target Number</label>
-            <div class="flex border border-green-700 mb-4 bg-black">
-                <span class="p-3 text-green-700 border-r border-green-700">+</span>
-                <input type="text" id="phone" placeholder="923001234567" 
-                       class="bg-transparent w-full p-3 outline-none text-green-400 placeholder-green-900">
-            </div>
-
-            <button onclick="initiateSequence()" id="action-btn"
-                    class="w-full bg-green-900/30 hover:bg-green-500/20 border border-green-600 text-green-400 py-3 uppercase tracking-widest text-sm transition-all hover:shadow-[0_0_15px_#0f0]">
-                >> INITIATE PAIRING <<
-            </button>
-        </div>
-
-        <div id="loader-section" class="hidden flex-col items-center py-6">
-            <div class="loader mb-4"></div>
-            <p class="text-xs animate-pulse">> ESTABLISHING SECURE CONNECTION...</p>
-        </div>
-
-        <div id="result-section" class="hidden text-center mt-4">
-            <p class="text-xs text-green-600 mb-2">> SESSION KEY GENERATED:</p>
-            <div class="border border-dashed border-green-500 p-4 bg-green-900/10 cursor-pointer relative group" onclick="copyCode()">
-                <h2 id="pair-code" class="text-3xl font-bold tracking-[5px] text-white"></h2>
-                <div class="absolute inset-0 bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-                    <span class="text-xs">[ CLICK TO COPY ]</span>
-                </div>
-            </div>
-            <button onclick="resetUI()" class="mt-4 text-xs underline text-green-800 hover:text-green-500">
-                [ NEW SESSION ]
-            </button>
-        </div>
-
-        <div class="mt-6 pt-4 border-t border-green-900 flex justify-between text-[10px] text-green-800">
-            <span>VOL: /data/bot.db</span>
-            <span id="active-bots">ACTIVE: 0</span>
-        </div>
+        <footer class="mt-10 text-[9px] text-gray-700 tracking-[4px] uppercase">
+            𝙎𝙞𝙡𝙚𝙣𝙩 𝙃𝙖𝙘𝙠𝙚𝙧𝙨 v4.0 (Go Edition)
+        </footer>
     </div>
 
     <script>
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+        // ✅ Fixed & Robust Pairing Logic
+        async function pairNow() {
+            const numInput = document.getElementById('phone-num');
+            const btn = document.getElementById('pair-btn');
+            
+            // Clean input
+            const num = numInput.value.replace(/[^0-9]/g, ''); 
 
-        socket.onopen = () => {
-            document.getElementById('ws-status').classList.replace('bg-red-600', 'bg-green-500');
-            document.getElementById('ws-text').innerText = "LINK ESTABLISHED";
-        };
-
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if(data.type === 'stats') {
-                document.getElementById('active-bots').innerText = `ACTIVE: ${data.active_bots}`;
-            }
-            if(data.type === 'new_session') {
-                // Optional: Notify UI of new session
-            }
-        };
-
-        async function initiateSequence() {
-            const num = document.getElementById('phone').value.replace(/\D/g, '');
-            if(num.length < 10) return alert(">> ERROR: INVALID NUMBER LENGTH");
-
-            toggleView('loading');
+            if(num.length < 10) return alert("Please enter a valid number!");
+            
+            // UI Loading State
+            btn.innerText = "PROCESSING...";
+            btn.classList.add("opacity-50", "cursor-not-allowed");
+            btn.disabled = true;
 
             try {
-                const res = await fetch('/api/pair', {
+                // ✅ Using POST (Matches new main.go)
+                const response = await fetch('/api/pair', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ number: num })
                 });
+
+                // ✅ SAFE PARSING (Text first, then JSON)
+                const rawText = await response.text();
+                let result;
                 
-                const data = await res.json();
-                
-                if(data.code) {
-                    document.getElementById('pair-code').innerText = data.code;
-                    toggleView('result');
-                } else {
-                    alert(">> ERROR: " + (data.error || "UNKNOWN"));
-                    toggleView('input');
+                try {
+                    result = JSON.parse(rawText);
+                } catch (e) {
+                    console.error("Non-JSON Response:", rawText);
+                    throw new Error("Server Error: " + rawText);
                 }
-            } catch(e) {
-                alert(">> CRITICAL FAILURE: " + e.message);
-                toggleView('input');
+                
+                if (result.code) {
+                    // Success Formatting
+                    const formattedCode = result.code.match(/.{1,4}/g).join("-");
+                    document.getElementById('display-code').innerText = formattedCode;
+                    
+                    document.getElementById('code-section').classList.remove('hidden');
+                    btn.innerText = "SUCCESS";
+                    btn.classList.replace("action-btn", "bg-green-600");
+                } else {
+                    throw new Error(result.error || "Unknown Error");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("❌ " + err.message);
+                btn.innerText = "TRY AGAIN";
+                btn.disabled = false;
+                btn.classList.remove("opacity-50", "cursor-not-allowed");
+                btn.classList.remove("bg-green-600");
+                btn.classList.add("action-btn");
             }
-        }
-
-        function toggleView(state) {
-            document.getElementById('input-section').classList.add('hidden');
-            document.getElementById('loader-section').classList.add('hidden');
-            document.getElementById('result-section').classList.add('hidden');
-
-            if(state === 'input') document.getElementById('input-section').classList.remove('hidden');
-            if(state === 'loading') document.getElementById('loader-section').classList.remove('hidden');
-            if(state === 'result') document.getElementById('result-section').classList.remove('hidden');
         }
 
         function copyCode() {
-            const code = document.getElementById('pair-code').innerText;
+            const code = document.getElementById('display-code').innerText.replace(/-/g, ""); 
             navigator.clipboard.writeText(code);
-            alert(">> DATA COPIED TO CLIPBOARD");
-        }
-
-        function resetUI() {
-            document.getElementById('phone').value = '';
-            toggleView('input');
+            alert("Code Copied: " + code);
         }
     </script>
 </body>

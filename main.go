@@ -47,7 +47,7 @@ var (
 // 🚀 MAIN FUNCTION
 // ==========================================
 func main() {
-	log.Println("🚀 STARTING BOT | PAIRING JSON FIXED...")
+	log.Println("🚀 STARTING BOT | PAIRING LOGIC FIXED (V3)...")
 
 	// 1. Ensure Data Directory
 	if _, err := os.Stat(VolumeDir); os.IsNotExist(err) {
@@ -97,7 +97,7 @@ func setupRoutes() {
 		http.ServeFile(w, r, "pic.png")
 	})
 	http.HandleFunc("/ws", handleWebSocket)
-	http.HandleFunc("/api/pair", handlePair) // 🔥 Fixed JSON Response Handler
+	http.HandleFunc("/api/pair", handlePair) // 🔥 JSON ONLY HANDLER
 }
 
 func startServer() {
@@ -223,11 +223,11 @@ func autoSaveLoop() {
 }
 
 // ==========================================
-// 🌐 PAIRING LOGIC (Fixed from Old File)
+// 🌐 PAIRING LOGIC (STRICT JSON)
 // ==========================================
 
 func handlePair(w http.ResponseWriter, r *http.Request) {
-	// ✅ 1. Force JSON Content-Type (To fix Unexpected token error)
+	// ✅ 1. Force JSON Headers
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -240,7 +240,7 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 	var req PairRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(400)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON format"})
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON data"})
 		return
 	}
 
@@ -258,7 +258,6 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 	}
 	sm.mu.Unlock()
 
-	// Clean from DB
 	devices, _ := container.GetAllDevices(context.Background())
 	for _, dev := range devices {
 		if getCleanID(dev.ID.User) == cleanID {
@@ -270,15 +269,15 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 	device := container.NewDevice()
 	client := whatsmeow.NewClient(device, waLog.Stdout("Pairing", "INFO", true))
 	
-	client.AddEventHandler(func(evt interface{}) {
-		// Basic handler during pairing
-	})
-
 	if err := client.Connect(); err != nil {
+		// ⚠️ Return JSON Error instead of http.Error
 		w.WriteHeader(500)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Connection Failed: " + err.Error()})
 		return
 	}
+
+	// ✅ Stability Wait (To fix 'bad-request' error)
+	time.Sleep(2 * time.Second)
 
 	// 5. Generate Code
 	code, err := client.PairPhone(context.Background(), number, true, whatsmeow.PairClientChrome, "Linux")
@@ -291,13 +290,12 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 
 	// 6. Background Wait Loop (From Old File Logic)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second) // Increased timeout
 		defer cancel()
 		
 		for {
 			select {
 			case <-ctx.Done():
-				// Timeout
 				if client.Store.ID == nil {
 					client.Disconnect()
 				}
@@ -320,7 +318,7 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// 7. Return Success JSON Immediately
+	// 7. Return Success JSON
 	json.NewEncoder(w).Encode(map[string]string{
 		"code":    code,
 		"success": "true",
