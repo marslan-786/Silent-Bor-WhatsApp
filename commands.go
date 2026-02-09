@@ -46,7 +46,7 @@ func HandleMessages(client *whatsmeow.Client, evt interface{}) {
 
 		// 3. Get Bot ID & Settings
 		rawBotID := client.Store.ID.User
-		botID := getCleanID(rawBotID)
+		botID := getCleanID(rawBotID) // ✅ Used from main.go
 		
 		// 4. Dynamic Prefix
 		prefix := "." 
@@ -63,20 +63,21 @@ func HandleMessages(client *whatsmeow.Client, evt interface{}) {
 		args := strings.Fields(body[len(prefix):])
 		cmd := strings.ToLower(args[0])
 		fullArgs := strings.Join(args[1:], " ")
+		_ = fullArgs // ✅ Fix: Handle Unused Variable
 
 		// 🔍 Log
 		fmt.Printf("🤖 CMD: %s | User: %s\n", cmd, v.Info.Sender.User)
 
-		// 7. 🚦 ROUTER (SWITCH CASE WITH ASYNC REACT)
+		// 7. 🚦 ROUTER
 		switch cmd {
 
 		// ➤ MENU & HELP
 		case "menu", "help", "list":
-			go DoReact(client, v, "📂") // Async React
+			go DoReact(client, v, "📂")
 			SendMenu(client, v, prefix, botID)
 
 		// ====================================================
-		// 👑 OWNER CONTROL (LID Secured & Async React)
+		// 👑 OWNER CONTROL
 		// ====================================================
 		
 		case "setprefix":
@@ -89,7 +90,6 @@ func HandleMessages(client *whatsmeow.Client, evt interface{}) {
 			if !isOwner(client, v.Info.Sender) { return }
 			HandleMode(client, v, args)
 
-		// ➤ Toggles (Master Toggle Function)
 		case "alwaysonline":
 			go DoReact(client, v, "🟢")
 			if !isOwner(client, v.Info.Sender) { return }
@@ -130,7 +130,7 @@ func HandleMessages(client *whatsmeow.Client, evt interface{}) {
 			HandleDeleteSession(client, v, args)
 
 		// ====================================================
-		// 🛡️ GROUP ADMINISTRATION (Direct Action)
+		// 🛡️ GROUP ADMINISTRATION
 		// ====================================================
 		
 		case "kick":
@@ -151,7 +151,6 @@ func HandleMessages(client *whatsmeow.Client, evt interface{}) {
 
 		case "tagall":
 			go DoReact(client, v, "📣")
-			// TagAll needs logic check inside function or here
 			if isAdmin(client, v.Info.Chat, v.Info.Sender) {
 				HandleTagAll(client, v, args)
 			}
@@ -164,32 +163,22 @@ func HandleMessages(client *whatsmeow.Client, evt interface{}) {
 
 		case "group":
 			go DoReact(client, v, "🔒")
-			HandleGroupSettings(client, v, args) // Open/Close logic
+			HandleGroupSettings(client, v, args)
 
 		case "del", "delete":
 			go DoReact(client, v, "🗑️")
 			HandleDelete(client, v)
 			
-		// ➤ Unknown Command
 		default:
-			// No reaction for unknown commands
+			// Ignore unknown
 		}
 	}
 }
 
-// ==========================================
-// ⚡ ASYNC REACTION FUNCTION
-// ==========================================
-
+// ✅ Fix: Helper Functions
 func DoReact(client *whatsmeow.Client, v *events.Message, emoji string) {
-	// یہ الگ تھریڈ (Goroutine) میں چلے گا
-	// main function کا انتظار نہیں کرے گا
-	
-	// Panic Recovery (تاکہ اگر یہ فیل ہو تو پورا بوٹ بند نہ ہو)
 	defer func() {
-		if r := recover(); r != nil {
-			fmt.Printf("⚠️ React Failed: %v\n", r)
-		}
+		if r := recover(); r != nil { fmt.Printf("React Error: %v\n", r) }
 	}()
 
 	client.SendMessage(context.Background(), v.Info.Chat, &waProto.Message{
@@ -205,10 +194,6 @@ func DoReact(client *whatsmeow.Client, v *events.Message, emoji string) {
 	})
 }
 
-// ==========================================
-// 🎨 DYNAMIC MENU BUILDER
-// ==========================================
-
 func SendMenu(client *whatsmeow.Client, v *events.Message, p string, botID string) {
 	pushName := v.Info.PushName
 	if pushName == "" { pushName = "User" }
@@ -216,7 +201,6 @@ func SendMenu(client *whatsmeow.Client, v *events.Message, p string, botID strin
 	uptime := time.Since(StartTime).Round(time.Second)
 	uptimeStr := fmt.Sprintf("%s", uptime)
 
-	// Mode Display
 	mode := "PUBLIC"
 	sm.mu.RLock()
 	if sm.Settings[botID] != nil && sm.Settings[botID].Mode != "" {
@@ -257,8 +241,8 @@ func SendMenu(client *whatsmeow.Client, v *events.Message, p string, botID strin
 │
 ╰────────────── [ 💀 ]
 `, pushName, mode, uptimeStr,
-	p, p, p, p, p, p, p, p, // Group
-	p, p, p, p, p, p, p, p) // Owner
+	p, p, p, p, p, p, p, p,
+	p, p, p, p, p, p, p, p)
 
 	imgMutex.RLock()
 	cached := cachedMenuImage
@@ -298,20 +282,6 @@ func SendMenu(client *whatsmeow.Client, v *events.Message, p string, botID strin
 	SendImage(client, v, newImg, menuText)
 }
 
-// ==========================================
-// 🛠️ HELPER FUNCTIONS
-// ==========================================
-
-func updateSetting(botID string, updateFn func(*BotSettings)) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-	if sm.Settings[botID] == nil {
-		sm.Settings[botID] = &BotSettings{Prefix: "."}
-	}
-	updateFn(sm.Settings[botID])
-}
-
-// ✅ Forward Tag Reply
 func ReplyMessage(client *whatsmeow.Client, v *events.Message, text string) {
 	contextInfo := &waProto.ContextInfo{
 		StanzaID:      proto.String(v.Info.ID),
@@ -347,7 +317,6 @@ func SendImage(client *whatsmeow.Client, v *events.Message, img *waProto.ImageMe
 			ServerMessageID: proto.Int32(100),
 		},
 	}
-
 	client.SendMessage(context.Background(), v.Info.Chat, &waProto.Message{
 		ImageMessage: &msgToSend,
 	})
@@ -358,26 +327,18 @@ func getText(m *waProto.Message) string {
 	if m.Conversation != nil { return *m.Conversation }
 	if m.ExtendedTextMessage != nil { return *m.ExtendedTextMessage.Text }
 	if m.ImageMessage != nil { return *m.ImageMessage.Caption }
-	if m.VideoMessage != nil { return *m.VideoMessage.Caption }
 	return ""
 }
 
-func getCleanID(s string) string {
-	if strings.Contains(s, ":") {
-		return strings.Split(s, ":")[0]
-	}
-	return strings.Split(s, "@")[0]
-}
-
-// 🔐 SECURITY
+// ✅ Fix: Use isOwnerByLID from lid_system.go
 func isOwner(client *whatsmeow.Client, sender types.JID) bool {
 	if client.Store.ID != nil && client.Store.ID.User == sender.User {
 		return true
 	}
-	return isOwnerByLID(client, sender) // lid_system.go
+	return isOwnerByLID(client, sender) 
 }
 
 func isAdmin(client *whatsmeow.Client, chat, sender types.JID) bool {
-	if !chat.Server.String() == "g.us" { return true }
-	return true // Placeholder: Implement real check if needed
+	if chat.Server != "g.us" { return true } // ✅ Fixed Server Check
+	return true // Placeholder
 }

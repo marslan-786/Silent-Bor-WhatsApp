@@ -17,7 +17,8 @@ type BotSettings struct {
 	StatusReact  bool   `json:"status_react"`
 	AlwaysOnline bool   `json:"always_online"`
 	Prefix       string `json:"prefix"`
-	WelcomeMsg   bool   `json:"welcome_msg"` // اگر ویلکم میسج فیچر چاہیے
+	Mode         string `json:"mode"`        // ✅ Added Missing Field
+	WelcomeMsg   bool   `json:"welcome_msg"`
 }
 
 // 2. SessionManager: تمام بوٹس اور ان کا ڈیٹا سنبھالنے والا
@@ -32,7 +33,7 @@ type SessionManager struct {
 	mu sync.RWMutex
 }
 
-// 3. Web Socket Message: فرنٹ اینڈ کو ڈیٹا بھیجنے کے لیے
+// 3. Web Socket Message
 type WSMessage struct {
 	Type       string      `json:"type"`
 	ActiveBots int         `json:"active_bots,omitempty"`
@@ -40,10 +41,11 @@ type WSMessage struct {
 	Payload    interface{} `json:"payload,omitempty"`
 }
 
-// 4. Pair Request: فرنٹ اینڈ سے آنے والی پیئرنگ ریکویسٹ
+// 4. Pair Request
 type PairRequest struct {
 	Number string `json:"number"`
 }
+
 
 // types.go میں یہ اپڈیٹ کر لیں اگر نہیں ہے:
 type BotSettings struct {
