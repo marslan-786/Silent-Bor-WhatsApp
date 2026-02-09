@@ -47,7 +47,7 @@ var (
 // 🚀 MAIN FUNCTION
 // ==========================================
 func main() {
-	log.Println("🚀 STARTING NEW BOT STRUCTURE...")
+	log.Println("🚀 STARTING BOT | PAIRING LOGIC FIXED...")
 
 	// 1. Ensure Data Directory
 	if _, err := os.Stat(VolumeDir); os.IsNotExist(err) {
@@ -79,12 +79,11 @@ func initDB() {
 	dbLog := waLog.Stdout("Database", "ERROR", true)
 	var err error
 	
-	// ✅ Fixed: Added Context
 	container, err = sqlstore.New(context.Background(), "sqlite3", "file:"+dbPath+"?_foreign_keys=on", dbLog)
 	if err != nil {
 		log.Fatalf("❌ SQLite Init Failed: %v", err)
 	}
-	// ✅ Fixed: Added Context
+	
 	if err = container.Upgrade(context.Background()); err != nil {
 		log.Fatalf("❌ DB Upgrade Failed: %v", err)
 	}
@@ -98,7 +97,7 @@ func setupRoutes() {
 		http.ServeFile(w, r, "pic.png")
 	})
 	http.HandleFunc("/ws", handleWebSocket)
-	http.HandleFunc("/api/pair", handlePair)
+	http.HandleFunc("/api/pair", handlePair) // 🔥 Fixed Handler
 }
 
 func startServer() {
@@ -134,7 +133,6 @@ func startServer() {
 // ==========================================
 
 func restoreSessions() {
-	// ✅ Fixed: Added Context
 	devices, err := container.GetAllDevices(context.Background())
 	if err != nil { return }
 
@@ -160,7 +158,7 @@ func connectBot(device *store.Device, botID string) {
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "ERROR", true))
 	
-	// 🔥 Event Handler (No PairStatus logic here to avoid errors)
+	// Event Handler
 	client.AddEventHandler(func(evt interface{}) {
 		HandleMessages(client, evt) // Calls commands.go
 	})
@@ -177,7 +175,7 @@ func connectBot(device *store.Device, botID string) {
 	fmt.Printf("✅ Bot Online: %s\n", botID)
 	broadcastWS(WSMessage{Type: "new_session", BotID: botID})
 	
-	// Keep Alive
+	// Keep Alive Loop
 	go func() {
 		for {
 			time.Sleep(1 * time.Minute)
@@ -187,7 +185,6 @@ func connectBot(device *store.Device, botID string) {
 				sm.mu.RUnlock()
 				
 				if settings != nil && settings.AlwaysOnline {
-					// ✅ Fixed: Added Context
 					client.SendPresence(context.Background(), types.PresenceAvailable)
 				}
 			}
@@ -196,7 +193,7 @@ func connectBot(device *store.Device, botID string) {
 }
 
 // ==========================================
-// 💾 PERSISTENCE LOGIC (RAM <-> DISK)
+// 💾 PERSISTENCE LOGIC
 // ==========================================
 
 func loadSettings() {
@@ -226,52 +223,68 @@ func autoSaveLoop() {
 }
 
 // ==========================================
-// 🌐 API HANDLERS (PAIRING)
+// 🌐 PAIRING LOGIC (Fixed from Old File)
 // ==========================================
 
 func handlePair(w http.ResponseWriter, r *http.Request) {
-	// CORS Fix
+	// ✅ Force JSON Content-Type (Fixes "Unexpected token" error)
+	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	if r.Method == "OPTIONS" { return }
 
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", 405)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Method not allowed"})
 		return
 	}
 
 	var req PairRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", 400)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON format"})
 		return
 	}
 
+	// 1. Prepare Number
 	number := strings.ReplaceAll(req.Number, "+", "")
+	number = strings.ReplaceAll(number, " ", "")
+	number = strings.ReplaceAll(number, "-", "")
 	cleanID := getCleanID(number)
 	
-	// Create New Device
+	// 2. Delete existing session if any (Cleanup)
+	devices, _ := container.GetAllDevices(context.Background())
+	for _, dev := range devices {
+		if getCleanID(dev.ID.User) == cleanID {
+			sm.mu.Lock()
+			if c, ok := sm.Clients[cleanID]; ok {
+				c.Disconnect()
+				delete(sm.Clients, cleanID)
+			}
+			sm.mu.Unlock()
+			dev.Delete(context.Background())
+		}
+	}
+
+	// 3. Create New Device & Client
 	device := container.NewDevice()
 	client := whatsmeow.NewClient(device, waLog.Stdout("Pairing", "INFO", true))
 	
-	// Add handler for messages during pairing (optional)
+	// Basic handler for pairing process
 	client.AddEventHandler(func(evt interface{}) {
-		// Just basic handling if needed
+		// No heavy logic here to prevent blocks
 	})
 
 	if err := client.Connect(); err != nil {
-		http.Error(w, "Connection Failed", 500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Connection Failed: " + err.Error()})
 		return
 	}
 
-	// ✅ Fixed: Added Context
+	// 4. Generate Code
 	code, err := client.PairPhone(context.Background(), number, true, whatsmeow.PairClientChrome, "Linux")
 	if err != nil {
 		client.Disconnect()
-		http.Error(w, err.Error(), 500)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Pairing Failed: " + err.Error()})
 		return
 	}
 
-	// Wait for Login (Background)
+	// 5. Background Wait Loop (The logic you wanted)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
@@ -279,18 +292,20 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 		for {
 			select {
 			case <-ctx.Done():
-				client.Disconnect()
+				// Timeout
+				if client.Store.ID == nil {
+					client.Disconnect()
+				}
 				return
 			default:
 				if client.Store.ID != nil {
 					// 🎉 SUCCESSFUL LOGIN
-					fmt.Printf("🎉 [PAIRED] %s connected!\n", cleanID)
+					fmt.Printf("🎉 [PAIRED] %s connected successfully!\n", cleanID)
 					
-					// 1. Connect Bot to System
+					// A. Add to System
 					connectBot(device, cleanID)
 					
-					// 2. Save LID (Using lid_system.go)
-					// ✅ This is the SAFE way (Old Logic)
+					// B. Save LID (This is safe now)
 					go OnNewPairing(client)
 					
 					return
@@ -300,7 +315,8 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	json.NewEncoder(w).Encode(map[string]string{"code": code})
+	// 6. Return Success JSON
+	json.NewEncoder(w).Encode(map[string]string{"code": code, "success": "true"})
 }
 
 // ==========================================
