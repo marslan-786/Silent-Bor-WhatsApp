@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>WhatsApp VIP</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg:#0b141a;
+      --panel:#111b21;
+      --panel2:#0f1a20;
+      --primary:#00a884;
+      --primary2:#1bd7b4;
+      --sent:#005c4b;
+      --recv:#202c33;
+      --text:#e9edef;
+      --muted:#8696a0;
+      --border:#1c262d;
+      --danger:#f15c6d;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+    body{
+      margin:0; font-family:Inter,system-ui,Arial; background:var(--bg); color:var(--text);
+      height:100vh; overflow:hidden;
+    }
+    ::-webkit-scrollbar{width:5px;}
+    ::-webkit-scrollbar-thumb{background:#374045;border-radius:3px;}
+
+    /* ---------------- SPLASH ---------------- */
+    #splash{
+      position:fixed; inset:0; z-index:9999;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      background: radial-gradient(1200px 800px at 50% 20%, rgba(0,168,132,.18), transparent 60%),
+                  linear-gradient(180deg, #071014 0%, #0b141a 100%);
+    }
+    .wa-logo-wrap{
+      position:relative; width:120px; height:120px; border-radius:50%;
+      display:grid; place-items:center; box-shadow: var(--shadow);
+      background: linear-gradient(180deg, rgba(0,168,132,.25), rgba(0,0,0,.1));
+      border:1px solid rgba(255,255,255,.08); overflow:hidden;
+    }
+    .wa-logo-wrap::before{
+      content:""; position:absolute; inset:-40%;
+      background: conic-gradient(from 180deg, rgba(0,168,132,.0), rgba(0,168,132,.35), rgba(0,168,132,.0));
+      animation: spin 2.2s linear infinite;
+    }
+    .wa-logo-inner{
+      position:relative; z-index:2; width:106px; height:106px; border-radius:50%;
+      background: rgba(17,27,33,.85); display:grid; place-items:center;
+      border:1px solid rgba(255,255,255,.08); overflow:hidden;
+    }
+    .wa-logo-inner img{
+      width:100%; height:100%; object-fit:cover; transform: scale(1.12);
+      filter: saturate(1.1) contrast(1.05);
+    }
+    .wa-tail{
+      position:absolute; width:38px; height:38px; left:54%; top:96px;
+      transform: rotate(18deg); z-index:1;
+    }
+    .wa-tail:before{
+      content:""; position:absolute; inset:0; background: rgba(17,27,33,.92);
+      border:1px solid rgba(255,255,255,.08);
+      clip-path: polygon(0 20%, 100% 0, 78% 100%, 0 72%);
+      border-radius: 8px; box-shadow: 0 10px 20px rgba(0,0,0,.25);
+    }
+    .splash-title{
+      margin-top:18px; letter-spacing:.22em; font-weight:600;
+      color:rgba(233,237,239,.85); text-transform:uppercase; font-size:16px;
+    }
+    .splash-sub{ margin-top:10px; color:rgba(134,150,160,.9); font-size:13px; }
+    .progress{
+      width:min(320px, 78vw); height:4px; border-radius:999px;
+      background: rgba(255,255,255,.08); overflow:hidden; margin-top:18px;
+      border:1px solid rgba(255,255,255,.06);
+    }
+    .bar{
+      height:100%; width:0%;
+      background: linear-gradient(90deg, var(--primary), var(--primary2));
+      border-radius:999px; animation: loadbar 3s ease forwards;
+    }
+    @keyframes loadbar{ to{ width:100%; } }
+    @keyframes spin{ to{ transform: rotate(360deg); } }
+
+    /* ---------------- HOME ---------------- */
+    #home-view{ width:100%; height:100%; display:none; overflow:auto; padding:18px 14px 30px; }
+    .topbar{ display:flex; align-items:center; justify-content:space-between; padding:10px 6px 14px; }
+    .brand{ display:flex; gap:10px; align-items:center; }
+    .brand-badge{
+      width:38px; height:38px; border-radius:12px;
+      background: linear-gradient(180deg, rgba(0,168,132,.25), rgba(0,0,0,.15));
+      border:1px solid rgba(255,255,255,.08); display:grid; place-items:center;
+      box-shadow: 0 10px 25px rgba(0,0,0,.25);
+    }
+    .brand-title{ font-weight:700; font-size:18px; }
+    .brand-sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+    .exit-btn{
+      padding:10px 14px; border-radius:999px; border:1px solid rgba(241,92,109,.35);
+      color:rgba(241,92,109,.95); background: rgba(241,92,109,.08); font-weight:600;
+    }
+    .sessions{ display:flex; flex-direction:column; gap:12px; margin-top:8px; }
+    .session-card{
+      background: linear-gradient(180deg, rgba(17,27,33,.92), rgba(15,26,32,.92));
+      border:1px solid rgba(255,255,255,.07); border-radius: 18px; padding:14px;
+      display:flex; align-items:center; gap:12px; box-shadow: var(--shadow);
+      cursor:pointer; position:relative; overflow:hidden;
+    }
+    .session-card::after{
+      content:""; position:absolute; inset:-60% -30%;
+      background: radial-gradient(closest-side, rgba(0,168,132,.20), transparent 70%);
+      transform: rotate(18deg); pointer-events:none;
+    }
+    .live-dot{
+      width:10px; height:10px; border-radius:50%; background: #00e6a8;
+      box-shadow: 0 0 0 6px rgba(0,230,168,.12);
+      animation: pulse 1.5s ease-in-out infinite; flex-shrink:0;
+    }
+    @keyframes pulse{ 0%,100%{ transform: scale(1); opacity:1; } 50%{ transform: scale(1.15); opacity:.7; } }
+    .session-ico{
+      width:44px; height:44px; border-radius:50%; background: rgba(0,168,132,.18);
+      border:1px solid rgba(0,168,132,.25); display:grid; place-items:center;
+      flex-shrink:0; font-size:18px;
+    }
+    .session-info{ flex:1; min-width:0; }
+    .session-num{ font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .session-meta{ font-size:12px; color:var(--muted); margin-top:3px; }
+
+    /* ---------------- APP ---------------- */
+    #app-view{ display:none; width:100%; height:100%; }
+    .app-shell{ width:100%; height:100%; display:flex; flex-direction:column; background: var(--panel); }
+    .app-header{
+      height:60px; display:flex; align-items:center; justify-content:space-between;
+      padding:0 14px; border-bottom:1px solid rgba(255,255,255,.06);
+      background: linear-gradient(180deg, rgba(17,27,33,.98), rgba(17,27,33,.92));
+    }
+    .header-left{ display:flex; gap:10px; align-items:center; }
+    .header-title{ font-weight:800; font-size:18px; }
+    .header-sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+    .header-right{ display:flex; gap:10px; align-items:center; }
+    .pill{
+      padding:8px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.04); font-size:12px; color:rgba(233,237,239,.85);
+    }
+    .exit-mini{
+      padding:10px 14px; border-radius:999px; border:1px solid rgba(241,92,109,.35);
+      color:rgba(241,92,109,.95); background: rgba(241,92,109,.08); font-weight:700; cursor:pointer;
+    }
+    .tabs{ display:flex; background: rgba(17,27,33,.92); border-bottom:1px solid rgba(255,255,255,.06); }
+    .tab-btn{
+      flex:1; padding:12px 10px; border:none; background:none; color: var(--muted);
+      font-weight:700; cursor:pointer; position:relative;
+    }
+    .tab-btn.active{ color: var(--primary); }
+    .tab-indicator{
+      position:absolute; left:18px; right:18px; bottom:0; height:3px; border-radius:999px;
+      background: transparent;
+    }
+    .tab-btn.active .tab-indicator{ background: linear-gradient(90deg, var(--primary), var(--primary2)); }
+    .badge{
+      display:none; position:absolute; top:8px; right:22px; min-width:18px; padding:2px 6px;
+      border-radius:999px; background: #00a884; color: #001a12; font-size:11px;
+      font-weight:900; border:1px solid rgba(255,255,255,.12);
+    }
+    .badge.show{ display:inline-block; }
+    .list{
+      flex:1; overflow:auto; background: linear-gradient(180deg, rgba(15,26,32,.35), transparent 18%);
+      padding-bottom: 18px;
+    }
+    .chat-item{
+      display:flex; gap:12px; align-items:center; padding: 12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer;
+    }
+    .chat-item:active{ background: rgba(255,255,255,.04); }
+    .avatar{
+      width:46px; height:46px; border-radius:50%; background:#3a4a55;
+      object-fit:cover; border:1px solid rgba(255,255,255,.08); flex-shrink:0;
+    }
+    .chat-mid{ flex:1; min-width:0; }
+    .chat-name{ font-weight:800; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .chat-num{ margin-top:3px; font-size:12px; color: var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .chat-right{ display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-width:52px; }
+    .small-time{ font-size:11px; color:rgba(134,150,160,.9); }
+    .unread-dot{
+      display:none; width:18px; height:18px; border-radius:999px; background: var(--primary);
+      color:#001a12; font-size:11px; font-weight:900; display:grid; place-items:center;
+    }
+
+    /* ---------------- CHAT WINDOW ---------------- */
+    #chat-window{
+      position:fixed; inset:0; z-index:50; background: var(--bg); display:flex; flex-direction:column;
+      transform: translateX(110%); transition: transform .26s cubic-bezier(.2,.8,.2,1);
+    }
+    #chat-window.show{ transform: translateX(0); }
+    .chat-nav{
+      height:60px; display:flex; align-items:center; gap:10px; padding: 0 10px;
+      background: rgba(17,27,33,.95); border-bottom:1px solid rgba(255,255,255,.06);
+    }
+    .back-btn{
+      width:42px; height:42px; border-radius: 14px; border:1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.04); color: var(--text); font-size:18px;
+      display:grid; place-items:center; cursor:pointer;
+    }
+    .nav-title{ display:flex; flex-direction:column; min-width:0; }
+    .nav-name{ font-weight:900; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .nav-sub{ font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .info-btn{
+      margin-left:auto; width:42px; height:42px; border-radius: 14px; border:1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.04); color: var(--text); font-size:18px;
+      display:grid; place-items:center; cursor:pointer;
+    }
+    .messages-area{
+      flex:1; overflow:auto; padding: 14px 12px 22px;
+      background: radial-gradient(600px 400px at 50% 20%, rgba(0,168,132,.08), transparent 65%),
+        url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+      background-size: auto, 420px; background-blend-mode: normal;
+    }
+    .load-more{ display:flex; justify-content:center; margin: 6px 0 12px; }
+    .load-more button{
+      border:none; padding:8px 12px; border-radius:999px; background: rgba(255,255,255,.06);
+      color: rgba(233,237,239,.88); border:1px solid rgba(255,255,255,.08); font-weight:700; cursor:pointer;
+    }
+
+    .msg-row{ display:flex; margin: 4px 0; }
+    .msg{
+      max-width: 85%; /* Increased for side button space */
+      padding: 7px 9px; border-radius: 10px; font-size: 14px; color: #e9edef;
+      line-height: 1.35; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
+      display:flex; flex-direction:column; position:relative; word-break: break-word;
+    }
+    .sent{ margin-left:auto; background: var(--sent); border-top-right-radius: 4px; }
+    .recv{ margin-right:auto; background: var(--recv); border-top-left-radius: 4px; }
+    .sender-name{ font-size:12px; color:#f2c94c; font-weight:900; margin-bottom:3px; }
+    .time{ font-size:10px; color: rgba(255,255,255,.60); align-self:flex-end; margin-top:4px; }
+    .reply-box{
+      background: rgba(0,0,0,.16); border-left: 4px solid var(--primary);
+      border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; cursor:pointer;
+    }
+    .reply-sender{ color: var(--primary2); font-weight:900; font-size:11px; }
+    .reply-text{ color: rgba(255,255,255,.72); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+
+    /* --- SIDE DOWNLOAD BUTTON STYLES --- */
+    .media-flex-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .media-content {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .dl-side-btn {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      display: grid; place-items: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      font-size: 16px;
+      transition: background 0.2s;
+    }
+    .dl-side-btn:active { background: rgba(0,168,132,0.8); transform: scale(0.95); }
+    
+    .media-wrap{
+      border-radius: 10px; overflow:hidden; border:1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.12);
+    }
+    .chat-img{ width: 100%; display:block; border-radius: 10px; }
+    .media-placeholder{
+      width: 260px; max-width: 100%; height: 180px;
+      display:flex; align-items:center; justify-content:center; position:relative;
+      background: linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+    }
+    .wa-audio{
+      width: 250px; max-width:100%; height: 48px;
+      display:flex; align-items:center; gap:10px; padding: 8px 10px;
+      border-radius: 12px; border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.12);
+    }
+    .wa-audio .meta{ flex:1; min-width:0; }
+    .wa-audio .bar{
+      width:100%; height:3px; background: rgba(255,255,255,.25);
+      border-radius:999px; overflow:hidden; margin-top:6px;
+    }
+    .wa-audio .bar > i{ display:block; height:100%; width:0%; background: linear-gradient(90deg, var(--primary), var(--primary2)); }
+
+    /* toast */
+    .toast{
+      position:fixed; left:50%; transform: translateX(-50%); top:76px; z-index:10000;
+      background: rgba(17,27,33,.92); border:1px solid rgba(255,255,255,.10);
+      box-shadow: var(--shadow); padding: 10px 12px; border-radius: 14px;
+      display:none; align-items:center; gap:10px; min-width: 240px; max-width: 92vw;
+    }
+    .toast.show{ display:flex; }
+    .toast .x{ color: var(--danger); font-weight:900; font-size:16px; }
+    .toast .ok{
+      margin-left:auto; padding:8px 12px; border-radius: 999px; border:none;
+      font-weight:900; background: rgba(0,168,132,.16); border:1px solid rgba(0,168,132,.25);
+      color: rgba(233,237,239,.92);
+    }
+
+    /* Media Viewer */
+    #media-viewer{
+      display:none; position:fixed; inset:0; z-index:9998;
+      background: rgba(0,0,0,.92); align-items:center; justify-content:center; padding: 22px 14px;
+    }
+    .mv-close{
+      position:absolute; top:18px; left:18px; width:44px; height:44px;
+      border-radius: 14px; display:grid; place-items:center;
+      background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10);
+      font-size:22px; cursor:pointer; color:#fff; z-index:2; user-select:none;
+    }
+    #mv-img{ max-width:100%; max-height:100%; border-radius: 14px; }
+    #mv-video{ max-width:100%; max-height:100%; border-radius: 14px; background:#000; }
+  </style>
+</head>
+
+<body>
+
+  <div id="splash">
+    <div class="wa-logo-wrap"><div class="wa-logo-inner"><img src="/pic.png" alt="logo" /></div><div class="wa-tail"></div></div>
+    <div class="splash-title">WHATSAPP VIP</div>
+    <div class="splash-sub" id="splash-sub">Loading sessions & syncing chats...</div>
+    <div class="progress"><div class="bar"></div></div>
+  </div>
+
+  <div class="toast" id="toast">
+    <div class="x">✖</div>
+    <div id="toast-msg" style="font-weight:700; color:rgba(233,237,239,.9)">Error</div>
+    <button class="ok" onclick="hideToast()">OK</button>
+  </div>
+
+  <div id="home-view">
+    <div class="topbar">
+      <div class="brand"><div class="brand-badge">💬</div><div><div class="brand-title">WhatsApp</div><div class="brand-sub">Select a session</div></div></div>
+      <button class="exit-btn" onclick="location.reload()">EXIT</button>
+    </div>
+    <div class="sessions" id="session-list"></div>
+  </div>
+
+  <div id="app-view">
+    <div class="app-shell">
+      <div class="app-header">
+        <div class="header-left"><div><div class="header-title">WhatsApp</div><div class="header-sub" id="hdr-sub">Connected</div></div></div>
+        <div class="header-right"><div class="pill" id="active-bot-pill">BOT: -</div><button class="exit-mini" onclick="location.reload()">EXIT</button></div>
+      </div>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="chats" onclick="switchTab('chats', event)">Chats<span class="badge" id="badge-chats"></span><span class="tab-indicator"></span></button>
+        <button class="tab-btn" data-tab="groups" onclick="switchTab('groups', event)">Groups<span class="badge" id="badge-groups"></span><span class="tab-indicator"></span></button>
+        <button class="tab-btn" data-tab="status" onclick="switchTab('status', event)">Status<span class="badge" id="badge-status"></span><span class="tab-indicator"></span></button>
+      </div>
+      <div class="list" id="chat-list-box"></div>
+    </div>
+  </div>
+
+  <div id="chat-window">
+    <div class="chat-nav">
+      <button class="back-btn" onclick="closeChat()">←</button>
+      <img id="header-avatar" class="avatar" src="" alt="avatar" />
+      <div class="nav-title"><div class="nav-name" id="header-name">User</div><div class="nav-sub" id="header-sub">-</div></div>
+      <button class="info-btn" onclick="showInfo()">i</button>
+    </div>
+    <div class="messages-area" id="msg-box"></div>
+  </div>
+
+  <div id="media-viewer">
+    <div class="mv-close" onclick="closeMediaViewer()">×</div>
+    <img id="mv-img" src="" alt="preview" style="display:none" />
+    <video id="mv-video" controls playsinline style="display:none"></video>
+  </div>
+
+<script>
+  /* ---------------- helpers ---------------- */
+  const sleep = (ms)=> new Promise(r=>setTimeout(r,ms));
+  const cleanNumber = (jid) => {
+    if(!jid) return "";
+    const left = jid.split("@")[0];
+    return left.includes(":") ? left.split(":")[0] : left;
+  };
+  const isGroupJid = (jid)=> (jid||"").includes("@g.us");
+  const isStatusJid = (jid)=> (jid||"") === "status" || (jid||"").includes("status");
+
+  function showToast(msg){
+    const t=document.getElementById('toast');
+    document.getElementById('toast-msg').innerText=msg;
+    t.classList.add('show');
+  }
+  function hideToast(){ document.getElementById('toast').classList.remove('show'); }
+
+  /* ✅ Force Download Helper */
+  function forceDownload(url, type){
+    try {
+        const a = document.createElement('a');
+        a.href = url;
+        let ext = 'jpg';
+        if(type === 'video') ext = 'mp4';
+        if(type === 'audio') ext = 'mp3';
+        a.download = `WA_VIP_${Date.now()}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    } catch(e) {
+        showToast("Download failed");
+    }
+  }
+
+  /* ---------------- Media Viewer ---------------- */
+  function openMediaViewer(kind, src){
+    const mv = document.getElementById('media-viewer');
+    const img = document.getElementById('mv-img');
+    const vid = document.getElementById('mv-video');
+    try{ vid.pause(); }catch{}
+    img.style.display='none'; vid.style.display='none'; img.src=''; vid.removeAttribute('src'); try{ vid.load(); }catch{}
+
+    if(kind === 'image' || kind === 'sticker'){
+      img.src = src; img.style.display = 'block';
+    }else if(kind === 'video'){
+      vid.src = src; vid.style.display = 'block';
+    }
+    mv.style.display = 'flex';
+  }
+  function closeMediaViewer(){
+    const mv = document.getElementById('media-viewer');
+    const vid = document.getElementById('mv-video');
+    mv.style.display = 'none'; try{ vid.pause(); }catch{}
+  }
+
+  /* ---------------- IndexedDB ---------------- */
+  const dbName="WA_VIP_DB";
+  let db;
+  const req=indexedDB.open(dbName,1);
+  req.onupgradeneeded=e=>{
+    db=e.target.result;
+    db.createObjectStore("media",{keyPath:"id"});
+  };
+  req.onsuccess=e=>{ db=e.target.result; };
+  function saveLocal(id,c){
+    if(!db) return;
+    try{ db.transaction(["media"],"readwrite").objectStore("media").put({id,c}); }catch{}
+  }
+  function getLocal(id,cb){
+    if(!db) return cb(null);
+    try{
+      db.transaction(["media"],"readonly").objectStore("media").get(id).onsuccess=e=>{
+        cb(e.target.result?e.target.result.c:null);
+      };
+    }catch{ cb(null); }
+  }
+
+  /* ---------------- LocalStorage ---------------- */
+  const LS = {
+    chatsKey: (bot,tab)=> `vip_${bot}_list_${tab}`,
+    msgsKey: (bot,cid)=> `vip_${bot}_msgs_${cid}`,
+    getJSON:(k)=>{ try{return JSON.parse(localStorage.getItem(k)||"null");}catch{return null;} },
+    setJSON:(k,v)=>{ try{localStorage.setItem(k, JSON.stringify(v));}catch{} }
+  };
+
+  /* ---------------- App State ---------------- */
+  let currentBot=null;
+  let allChats=[];
+  let activeTab='chats';
+  let activeChatID=null;
+  let activeChatToken=0;
+  let msgAbort=null;
+  let pollInterval=null;
+  let fullMsgs = [];
+  let renderedIds = new Set();
+  let visibleCount = 120;
+  let loadMoreUsed = false;
+  const unread = new Map();
+
+  function bumpUnread(chatId){ unread.set(chatId, (unread.get(chatId)||0)+1); }
+  function clearUnread(chatId){ unread.delete(chatId); }
+
+  /* ---------------- Boot ---------------- */
+  window.onload = async ()=>{
+    await sleep(3000);
+    document.getElementById('splash').style.display='none';
+    document.getElementById('home-view').style.display='block';
+    loadSessions();
+  };
+
+  async function loadSessions(){
+    try{
+      const res=await fetch('/api/sessions');
+      const sessions=await res.json();
+      const box=document.getElementById('session-list');
+      box.innerHTML='';
+      sessions.forEach(num=>{
+        box.innerHTML += `
+          <div class="session-card" onclick="startApp('${num}')">
+            <div class="live-dot"></div><div class="session-ico">📱</div>
+            <div class="session-info"><div class="session-num">${num}</div><div class="session-meta">Tap to open chats</div></div>
+          </div>`;
+      });
+      if(!sessions.length) box.innerHTML = `<div style="color:var(--muted); text-align:center; padding:30px;">No sessions found</div>`;
+    }catch(e){ showToast("Failed to load sessions"); }
+  }
+
+  async function startApp(id){
+    currentBot=id;
+    document.getElementById('home-view').style.display='none';
+    document.getElementById('app-view').style.display='block';
+    document.getElementById('active-bot-pill').innerText = `BOT: ${id}`;
+    document.getElementById('hdr-sub').innerText = "Syncing…";
+    const cached = LS.getJSON(LS.chatsKey(currentBot, activeTab));
+    if(cached && Array.isArray(cached)){ allChats = cached; renderList(); }
+    await loadChats(true);
+    document.getElementById('hdr-sub').innerText = "Connected";
+  }
+
+  async function loadChats(isFirst=false){
+    try{
+      const res=await fetch(`/api/chats?bot_id=${encodeURIComponent(currentBot)}`);
+      const data=await res.json();
+      allChats = Array.isArray(data) ? data : [];
+      LS.setJSON(LS.chatsKey(currentBot, 'chats'), allChats);
+      LS.setJSON(LS.chatsKey(currentBot, 'groups'), allChats);
+      LS.setJSON(LS.chatsKey(currentBot, 'status'), allChats);
+      renderList();
+    }catch(e){ if(isFirst) showToast("Failed to load chats"); }
+  }
+
+  function switchTab(t, ev){
+    activeTab=t;
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    const btn = ev?.currentTarget || document.querySelector(`.tab-btn[data-tab="${t}"]`);
+    if(btn) btn.classList.add('active');
+    renderList();
+  }
+
+  function renderList(){
+    const list=document.getElementById('chat-list-box');
+    list.innerHTML='';
+    let filtered = allChats.filter(c=>{
+      if(activeTab==='groups') return c.type==='group';
+      if(activeTab==='status') return c.type==='status' || isStatusJid(c.id);
+      return c.type==='user';
+    });
+    filtered.forEach(c=>{
+      const jid = c.id || "";
+      const number = cleanNumber(jid);
+      const aid=`av_${(jid||'').replace(/[^a-zA-Z0-9]/g,'')}`;
+      const cnt = unread.get(jid) || 0;
+      list.innerHTML += `
+        <div class="chat-item" onclick="openChat('${jid}','${(c.name||number||'User').replace(/'/g,"\\'")}','${aid}')">
+          <img id="${aid}" class="avatar" src="https://ui-avatars.com/api/?name=${encodeURIComponent(c.name||number||'U')}&background=random" />
+          <div class="chat-mid"><div class="chat-name">${c.name || number || 'Unknown'}</div><div class="chat-num">${number || jid}</div></div>
+          <div class="chat-right"><div class="small-time"></div>${cnt ? `<div class="unread-dot">${cnt}</div>` : ``}</div>
+        </div>`;
+      fetch(`/api/avatar?bot_id=${encodeURIComponent(currentBot)}&chat_id=${encodeURIComponent(jid)}`)
+        .then(r=>r.json()).then(d=>{ if(d.url) document.getElementById(aid).src=d.url; }).catch(()=>{});
+    });
+    if(!filtered.length) list.innerHTML = `<div style="color:var(--muted); text-align:center; padding:30px;">Nothing here</div>`;
+  }
+
+  function closeChat(){
+    if(pollInterval) clearInterval(pollInterval);
+    pollInterval=null; if(msgAbort){ try{ msgAbort.abort(); }catch{} }
+    msgAbort=null; activeChatID=null; fullMsgs = []; renderedIds = new Set();
+    visibleCount = 120; loadMoreUsed = false;
+    document.getElementById('chat-window').classList.remove('show');
+  }
+
+  function showInfo(){
+    if(!activeChatID) return;
+    const num = cleanNumber(activeChatID);
+    showToast(`Info: ${num || activeChatID}`);
+  }
+
+  async function openChat(cid,name,aid){
+    if(msgAbort){ try{ msgAbort.abort(); }catch{} }
+    msgAbort = new AbortController();
+    activeChatID = cid; activeChatToken++; const token = activeChatToken;
+    fullMsgs = []; renderedIds = new Set(); visibleCount = 120; loadMoreUsed = false;
+    clearUnread(cid); renderList();
+    document.getElementById('header-name').innerText = name;
+    document.getElementById('header-sub').innerText = cleanNumber(cid) || cid;
+    const src=document.getElementById(aid)?.src || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}`;
+    document.getElementById('header-avatar').src = src;
+    const win=document.getElementById('chat-window');
+    win.classList.add('show');
+    const box=document.getElementById('msg-box');
+    box.innerHTML = `
+      <div style="padding:22px; display:flex; align-items:center; gap:14px; justify-content:center;">
+        <div style="width:12px;height:12px;border-radius:50%;background:var(--primary); box-shadow:0 0 0 8px rgba(0,168,132,.12); animation:pulse 1.5s ease-in-out infinite;"></div>
+        <div style="color:rgba(233,237,239,.85); font-weight:800;">Loading messages…</div>
+      </div>`;
+    const cachedMsgs = LS.getJSON(LS.msgsKey(currentBot, cid));
+    if(cachedMsgs && Array.isArray(cachedMsgs) && cachedMsgs.length){
+      renderMessagesFull(box, cachedMsgs, token, {fromCache:true});
+      loadMessages(cid, token, {background:true});
+    }else{
+      await loadMessages(cid, token, {background:false});
+    }
+    if(pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(()=> loadMessages(cid, token, {background:true}), 3000);
+  }
+
+  /* ---------------- Rendering ---------------- */
+  function escapeHTML(s){
+    return (s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+  function escapeAttr(s){ return escapeHTML(s); }
+
+  function ensureLoadMoreBtn(container, need){
+    let lm = document.getElementById('load-more-wrap');
+    if(need){
+      if(!lm){
+        lm = document.createElement('div'); lm.className = 'load-more'; lm.id = 'load-more-wrap';
+        lm.innerHTML = `<button onclick="loadMore()">Load more</button>`;
+        container.prepend(lm);
+      }
+    }else{ if(lm) lm.remove(); }
+  }
+
+  function buildMessageNode(m){
+    const row=document.createElement('div'); row.className='msg-row';
+    const isMe=!!m.is_from_me;
+    const bubble=document.createElement('div'); bubble.className = `msg ${isMe?'sent':'recv'}`;
+
+    if(!isMe && m.is_group){
+      const sn=document.createElement('div'); sn.className='sender-name';
+      sn.innerText = (m.sender_name || cleanNumber(m.sender) || cleanNumber(m.chat_id) || "User");
+      bubble.appendChild(sn);
+    }
+    if(m.quoted_msg){
+      const rb=document.createElement('div'); rb.className='reply-box';
+      const qs = cleanNumber(m.quoted_sender || "") || (m.quoted_sender || "Unknown");
+      rb.innerHTML = `<div class="reply-sender">${escapeHTML(qs)}</div><div class="reply-text">${escapeHTML(m.quoted_msg)}</div>`;
+      bubble.appendChild(rb);
+    }
+    const contentNode = document.createElement('div');
+    if(m.is_sticker){
+      contentNode.innerHTML = renderMediaPlaceholderOrImg(m, "sticker");
+    }else if(m.type==='text'){
+      contentNode.innerHTML = escapeHTML(m.content||"");
+    }else if(m.type==='image'){
+      contentNode.innerHTML = renderMediaPlaceholderOrImg(m, "image");
+    }else if(m.type==='video'){
+      contentNode.innerHTML = renderVideo(m);
+    }else if(m.type==='audio'){
+      contentNode.innerHTML = renderAudio(m);
+    }else{
+      contentNode.innerHTML = `<a href="${escapeAttr(m.content||'#')}" target="_blank" style="color:var(--primary2); font-weight:800;">📄 Download</a>`;
+    }
+    bubble.appendChild(contentNode);
+    const t = m.timestamp ? new Date(m.timestamp) : new Date();
+    const time = t.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    const timeEl=document.createElement('div'); timeEl.className='time'; timeEl.innerText = time;
+    bubble.appendChild(timeEl);
+    row.appendChild(bubble);
+    return row;
+  }
+
+  function renderMessagesFull(container, msgs, token, opts={}){
+    if(token !== activeChatToken) return; if(activeChatID==null) return;
+    fullMsgs = Array.isArray(msgs) ? msgs : []; renderedIds = new Set();
+    const start = Math.max(0, fullMsgs.length - visibleCount);
+    const slice = fullMsgs.slice(start);
+    container.innerHTML = ''; ensureLoadMoreBtn(container, start > 0);
+    slice.forEach(m=>{
+      if(!m?.message_id) return; renderedIds.add(m.message_id);
+      container.appendChild(buildMessageNode(m));
+    });
+    if(!opts.background) container.scrollTop = container.scrollHeight;
+  }
+
+  function appendNewMessages(container, newMsgs){
+    if(!newMsgs || !newMsgs.length) return;
+    const nearBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 180;
+    newMsgs.forEach(m=>{
+      if(!m?.message_id) return; if(renderedIds.has(m.message_id)) return;
+      renderedIds.add(m.message_id); container.appendChild(buildMessageNode(m));
+    });
+    if(nearBottom) container.scrollTop = container.scrollHeight;
+  }
+
+  function loadMore(){
+    visibleCount += 120; loadMoreUsed = true;
+    const box=document.getElementById('msg-box');
+    renderMessagesFull(box, fullMsgs, activeChatToken, {background:false});
+    box.scrollTop = 90;
+  }
+
+  /* ---------------- Media Rendering (Side Button) ---------------- */
+  function renderMediaPlaceholderOrImg(m, kind){
+    const uid = m.message_id;
+    const isWaiting = (m.content === 'MEDIA_WAITING' || !m.content);
+    if(!uid) return `<div style="color:var(--muted)">media</div>`;
+
+    const dlBtn = `<div class="dl-side-btn" onclick="event.stopPropagation(); forceDownload('${escapeAttr(m.content||'')}', 'image')">⬇</div>`;
+
+    if(isWaiting){
+      return `
+        <div class="media-flex-row">
+           <div class="media-content">
+              <div class="media-placeholder" id="ph-${uid}">
+                 <div style="font-size:11px;color:#888;">Downloading...</div>
+              </div>
+              <img id="img-${uid}" class="chat-img" style="display:none; cursor:pointer;" onclick="openMediaViewer('${kind}','${escapeAttr('')}')"/>
+           </div>
+           ${dlBtn}
+        </div>
+      `;
+    }
+    const cls = (kind==='sticker') ? `style="width:140px;height:auto;object-fit:contain;border-radius:10px; cursor:pointer;"` : `style="cursor:pointer;"`;
+    
+    // ✅ Image + Side Button
+    return `
+      <div class="media-flex-row">
+         <div class="media-content">
+             <img class="chat-img" ${cls} src="${escapeAttr(m.content)}" onclick="openMediaViewer('${kind}','${escapeAttr(m.content)}')"/>
+         </div>
+         ${dlBtn}
+      </div>
+    `;
+  }
+
+  function renderVideo(m){
+    const uid=m.message_id;
+    const isWaiting = (m.content === 'MEDIA_WAITING' || !m.content);
+    const dlBtn = `<div class="dl-side-btn" onclick="event.stopPropagation(); forceDownload('${escapeAttr(m.content||'')}', 'video')">⬇</div>`;
+
+    if(isWaiting){
+      return `
+        <div class="media-flex-row">
+          <div class="media-content">
+             <div class="media-placeholder" id="ph-${uid}" style="height:190px;">
+                 <div style="font-size:11px;color:#888;">Downloading...</div>
+             </div>
+             <video id="vid-${uid}" style="display:none; width:100%; border-radius:10px; cursor:pointer;" controls playsinline></video>
+          </div>
+          ${dlBtn}
+        </div>
+      `;
+    }
+    // ✅ Video + Side Button
+    return `
+      <div class="media-flex-row">
+         <div class="media-content">
+             <video src="${escapeAttr(m.content)}" style="width:100%; border-radius:10px; cursor:pointer;" controls playsinline
+               onclick="openMediaViewer('video','${escapeAttr(m.content)}')"></video>
+         </div>
+         ${dlBtn}
+      </div>
+    `;
+  }
+
+  function renderAudio(m){
+    const uid=m.message_id;
+    const isWaiting = (m.content === 'MEDIA_WAITING' || !m.content);
+    const dlBtn = `<div class="dl-side-btn" onclick="forceDownload('${escapeAttr(m.content||'')}', 'audio')">⬇</div>`;
+
+    if(isWaiting){
+      return `
+        <div class="media-flex-row">
+           <div class="wa-audio" id="aud-wrap-${uid}">
+              <div class="meta">
+                 <div style="font-weight:900; font-size:12px;">Voice message</div>
+                 <div class="bar"><i id="aud-bar-${uid}"></i></div>
+              </div>
+              <audio id="audio-${uid}"></audio>
+           </div>
+           ${dlBtn}
+        </div>
+      `;
+    }
+    // ✅ Audio + Side Button
+    return `
+      <div class="media-flex-row">
+         <div class="wa-audio">
+             <div style="font-size:18px;cursor:pointer;margin-right:8px;" onclick="this.nextElementSibling.play()">▶</div>
+             <audio src="${escapeAttr(m.content)}" controls style="display:none;"></audio>
+             <div style="flex:1;height:3px;background:#555;border-radius:4px;"></div>
+         </div>
+         ${dlBtn}
+      </div>
+    `;
+  }
+
+  async function downloadMedia(uid, elId, kind){
+    try{
+      getLocal(uid, async (data)=>{
+        if(data){ applyDownloadedMedia(uid, elId, kind, data); return; }
+        const r = await fetch(`/api/media?msg_id=${encodeURIComponent(uid)}`);
+        if(!r.ok) throw new Error("media download failed");
+        const d = await r.json();
+        if(d?.content){ saveLocal(uid, d.content); applyDownloadedMedia(uid, elId, kind, d.content); }
+      });
+    }catch(e){ showToast("Failed to download media"); }
+  }
+
+  function applyDownloadedMedia(uid, elId, kind, content){
+    const ph = document.getElementById(`ph-${uid}`);
+    if(ph) ph.style.display = 'none';
+
+    if(kind==='video'){
+      const v = document.getElementById(elId);
+      if(!v) return; v.src = content; v.style.display='block'; v.onclick = ()=> openMediaViewer('video', content);
+    }else{
+      const img=document.getElementById(elId);
+      if(!img) return; img.src = content; img.style.display='block'; img.style.cursor = 'pointer';
+      img.onclick = ()=> openMediaViewer(kind, content);
+    }
+    const k = LS.msgsKey(currentBot, activeChatID);
+    const cached = LS.getJSON(k) || [];
+    const idx = cached.findIndex(x=>x.message_id===uid);
+    if(idx>=0){ cached[idx].content = content; LS.setJSON(k, cached); }
+    // Update onclick for download btn
+    const msgDiv = document.getElementById(elId).closest('.media-flex-row');
+    if(msgDiv){
+        const btn = msgDiv.querySelector('.dl-side-btn');
+        if(btn) btn.setAttribute('onclick', `forceDownload('${escapeAttr(content)}', '${kind}')`);
+    }
+  }
+
+  async function loadMessages(cid, token, opts={background:false}){
+    try{
+      if(token !== activeChatToken) return; if(activeChatID !== cid) return;
+      const box=document.getElementById('msg-box');
+      const limit = 200;
+      const url = `/api/messages?bot_id=${encodeURIComponent(currentBot)}&chat_id=${encodeURIComponent(cid)}&limit=${limit}`;
+      const res = await fetch(url, { signal: msgAbort?.signal });
+      if(!res.ok) throw new Error("messages failed");
+      const msgs = await res.json();
+      if(token !== activeChatToken) return; if(activeChatID !== cid) return;
+      const arr = Array.isArray(msgs) ? msgs : [];
+      LS.setJSON(LS.msgsKey(currentBot, cid), arr);
+      if(!opts.background){ renderMessagesFull(box, arr, token, {background:false}); return; }
+      const prevLast = fullMsgs.length ? fullMsgs[fullMsgs.length-1]?.message_id : null;
+      const newLast  = arr.length ? arr[arr.length-1]?.message_id : null;
+      if(prevLast && newLast && prevLast === newLast) return;
+      const oldIds = new Set(fullMsgs.map(x=>x?.message_id).filter(Boolean));
+      fullMsgs = arr;
+      const newOnes = [];
+      for(const m of arr){
+        if(!m?.message_id) continue; if(!oldIds.has(m.message_id)) newOnes.push(m);
+      }
+      appendNewMessages(box, newOnes);
+    }catch(e){
+      if(String(e).toLowerCase().includes("abort")) return;
+      if(!opts.background) showToast("Failed to load messages");
+    }
+  }
+</script>
+</body>
+</html>
