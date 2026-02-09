@@ -98,7 +98,6 @@
     </div>
 
     <script>
-        // ✅ Fixed & Robust Pairing Logic
         async function pairNow() {
             const numInput = document.getElementById('phone-num');
             const btn = document.getElementById('pair-btn');
@@ -106,7 +105,7 @@
             // Clean input
             const num = numInput.value.replace(/[^0-9]/g, ''); 
 
-            if(num.length < 10) return alert("Please enter a valid number!");
+            if(num.length < 10) return alert("Please enter a valid number (e.g. 923001234567)");
             
             // UI Loading State
             btn.innerText = "PROCESSING...";
@@ -114,22 +113,23 @@
             btn.disabled = true;
 
             try {
-                // ✅ Using POST (Matches new main.go)
+                // Request
+                console.log("Sending request for:", num);
                 const response = await fetch('/api/pair', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ number: num })
                 });
 
-                // ✅ SAFE PARSING (Text first, then JSON)
+                // Read raw text first
                 const rawText = await response.text();
+                console.log("Server Response:", rawText);
+
                 let result;
-                
                 try {
                     result = JSON.parse(rawText);
                 } catch (e) {
-                    console.error("Non-JSON Response:", rawText);
-                    throw new Error("Server Error: " + rawText);
+                    throw new Error("Server returned non-JSON Error: " + rawText);
                 }
                 
                 if (result.code) {
@@ -144,8 +144,9 @@
                     throw new Error(result.error || "Unknown Error");
                 }
             } catch (err) {
-                console.error(err);
-                alert("❌ " + err.message);
+                console.error("Pairing Error:", err);
+                alert("❌ ERROR: " + err.message);
+                
                 btn.innerText = "TRY AGAIN";
                 btn.disabled = false;
                 btn.classList.remove("opacity-50", "cursor-not-allowed");
