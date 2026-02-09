@@ -1,12 +1,10 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -34,32 +32,9 @@ var (
 )
 
 func InitLIDSystem() {
-	fmt.Println("🔐 LID SYSTEM INIT")
+	fmt.Println("🔐 LID SYSTEM INITIALIZING...")
 	loadLIDFile()
-	syncLIDsFromDB()
-}
-
-func syncLIDsFromDB() {
-	// ✅ Fix: Add Context
-	devices, err := container.GetAllDevices(context.Background())
-	if err != nil { return }
-
-	lidMutex.Lock()
-	defer lidMutex.Unlock()
-
-	currentData := LIDStorage{Bots: make(map[string]BotLIDData)}
-	if fileData, err := readJSON(); err == nil { currentData = fileData }
-
-	for _, device := range devices {
-		if device.ID == nil { continue }
-		phone := getCleanID(device.ID.User)
-		
-		// ✅ Fix: Safe LID Check (Skip if struct differs)
-		// ہم فی الحال صرف تب اٹھائیں گے جب لائیو کنکشن ہو۔
-		// DB سے براہ راست نکالنا مشکل ہے کیونکہ اسٹرکچر ورژن مختلف ہو سکتا ہے۔
-		_ = phone
-	}
-	// (باقی کوڈ ویسا ہی، بس DB سے Direct LID نکالنے والی لائن ہٹا دیں کیونکہ وہ ایرر دے رہی ہے)
+	// Removed complex DB sync to avoid errors, relying on live pairing now.
 }
 
 func OnNewPairing(client *whatsmeow.Client) {
@@ -67,16 +42,26 @@ func OnNewPairing(client *whatsmeow.Client) {
 	if client.Store.ID == nil { return }
 	phone := getCleanID(client.Store.ID.User)
 	
-	// ✅ Fix: Check ID.Server for LID
+	// Check if we are logged in with LID
 	var lid string
 	if client.Store.ID.Server == "lid" {
 		lid = client.Store.ID.User
 	}
 	
+	// If found, save it
 	if lid != "" {
 		lidMutex.Lock()
 		lidCache[phone] = lid
+		
+		// Update File
+		data, _ := readJSON()
+		if data.Bots == nil { data.Bots = make(map[string]BotLIDData) }
+		data.Bots[phone] = BotLIDData{Phone: phone, LID: lid, ExtractedAt: time.Now()}
+		data.LastUpdate = time.Now()
+		saveJSON(data)
+		
 		lidMutex.Unlock()
+		fmt.Printf("✅ Saved LID for %s\n", phone)
 	}
 }
 
@@ -84,20 +69,35 @@ func isOwnerByLID(client *whatsmeow.Client, sender types.JID) bool {
 	if client.Store.ID == nil { return false }
 	botPhone := getCleanID(client.Store.ID.User)
 	senderPhone := getCleanID(sender.User)
+	
+	// Simple check: Is the sender the bot itself? (Self-message)
 	if senderPhone == botPhone { return true }
+	
+	// Cache Check
+	lidMutex.RLock()
+	cachedLID, exists := lidCache[botPhone]
+	lidMutex.RUnlock()
+	
+	if exists && getCleanID(sender.User) == getCleanID(cachedLID) {
+		return true
+	}
+	
 	return false
 }
 
 func sendOwnerStatus(client *whatsmeow.Client, v *events.Message) {
-	ReplyMessage(client, v, "✅ Owner Check")
+	ReplyMessage(client, v, "✅ Owner System Active")
 }
 
 func loadLIDFile() {
 	data, err := readJSON()
 	if err == nil {
 		lidMutex.Lock()
-		for p, info := range data.Bots { lidCache[p] = info.LID }
+		for p, info := range data.Bots {
+			lidCache[p] = info.LID
+		}
 		lidMutex.Unlock()
+		fmt.Printf("📂 Loaded %d LIDs.\n", len(data.Bots))
 	}
 }
 

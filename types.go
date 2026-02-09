@@ -17,7 +17,7 @@ type BotSettings struct {
 	StatusReact  bool   `json:"status_react"`
 	AlwaysOnline bool   `json:"always_online"`
 	Prefix       string `json:"prefix"`
-	Mode         string `json:"mode"`        // ✅ Added Missing Field
+	Mode         string `json:"mode"`
 	WelcomeMsg   bool   `json:"welcome_msg"`
 }
 
@@ -44,11 +44,4 @@ type WSMessage struct {
 // 4. Pair Request
 type PairRequest struct {
 	Number string `json:"number"`
-}
-
-
-// types.go میں یہ اپڈیٹ کر لیں اگر نہیں ہے:
-type BotSettings struct {
-    // ... باقی فیلڈز
-    Mode string `json:"mode"` // public, admin, private
 }

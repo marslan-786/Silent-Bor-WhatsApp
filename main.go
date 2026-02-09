@@ -33,7 +33,6 @@ const (
 
 // 🌍 GLOBAL VARIABLES
 var (
-	// Session Manager کو اب types.go والے اسٹرکچر سے بنایا گیا ہے
 	sm = &SessionManager{
 		Clients:  make(map[string]*whatsmeow.Client),
 		Settings: make(map[string]*BotSettings),
@@ -45,32 +44,22 @@ var (
 )
 
 // ==========================================
-// 🚀 MAIN FUNCTION (ENTRY POINT)
+// 🚀 MAIN FUNCTION
 // ==========================================
 func main() {
-	log.Println("🚀 STARTING SYSTEM | CLEAN ARCHITECTURE...")
+	log.Println("🚀 STARTING SYSTEM | CONTEXT FIXED...")
 
-	// 1. Data Directory Setup (Railway Volume)
 	if _, err := os.Stat(VolumeDir); os.IsNotExist(err) {
 		_ = os.Mkdir(VolumeDir, 0755)
 	}
 
-	// 2. Database Init (SQLite)
 	initDB()
-
-	// 3. Load Settings into RAM
+	InitLIDSystem() // Initialize LID System
 	loadSettings()
-
-	// 4. Restore Previous Sessions
 	restoreSessions()
 
-	// 5. Start Background Auto-Save
 	go autoSaveLoop()
-
-	// 6. Setup HTTP Routes
 	setupRoutes()
-
-	// 7. Start Server & Wait for Shutdown
 	startServer()
 }
 
@@ -82,11 +71,13 @@ func initDB() {
 	dbPath := filepath.Join(VolumeDir, DBName)
 	dbLog := waLog.Stdout("Database", "ERROR", true)
 	var err error
-	container, err = sqlstore.New("sqlite3", "file:"+dbPath+"?_foreign_keys=on", dbLog)
+	// ✅ FIX: Added context.Background()
+	container, err = sqlstore.New(context.Background(), "sqlite3", "file:"+dbPath+"?_foreign_keys=on", dbLog)
 	if err != nil {
 		log.Fatalf("❌ SQLite Init Failed: %v", err)
 	}
-	if err = container.Upgrade(); err != nil {
+	// ✅ FIX: Added context.Background()
+	if err = container.Upgrade(context.Background()); err != nil {
 		log.Fatalf("❌ DB Upgrade Failed: %v", err)
 	}
 }
@@ -112,14 +103,12 @@ func startServer() {
 		}
 	}()
 
-	// Graceful Shutdown Logic
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 
-	fmt.Println("\n🛑 Shutting down... Saving Data.")
-	saveSettings() // Final Save
-	
+	fmt.Println("\n🛑 Shutting down...")
+	saveSettings()
 	sm.mu.Lock()
 	for _, client := range sm.Clients {
 		client.Disconnect()
@@ -129,11 +118,12 @@ func startServer() {
 }
 
 // ==========================================
-// 🔌 LOGIC HANDLERS (Simplified)
+// 🔌 LOGIC HANDLERS
 // ==========================================
 
 func restoreSessions() {
-	devices, err := container.GetAllDevices()
+	// ✅ FIX: Added context.Background()
+	devices, err := container.GetAllDevices(context.Background())
 	if err != nil { return }
 
 	fmt.Printf("🔄 Restoring %d Sessions...\n", len(devices))
@@ -150,19 +140,19 @@ func connectBot(device *store.Device, botID string) {
 		return
 	}
 	
-	// Default Settings Check
 	if _, ok := sm.Settings[botID]; !ok {
-		sm.Settings[botID] = &BotSettings{
-			Prefix: ".", AlwaysOnline: true,
-		}
+		sm.Settings[botID] = &BotSettings{Prefix: ".", AlwaysOnline: true}
 	}
 	sm.mu.Unlock()
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("Client", "ERROR", true))
-	
-	// 🔥 Important: Event Handler Connect
 	client.AddEventHandler(func(evt interface{}) {
-		// HandleMessages(client, evt) // یہ فنکشن آپ commands.go میں بنائیں گے
+		HandleMessages(client, evt) // From commands.go
+		if evt, ok := evt.(*whatsmeow.PairStatusEvent); ok {
+			// Save LID on pairing
+			OnNewPairing(client)
+			_ = evt
+		}
 	})
 
 	if err := client.Connect(); err != nil {
@@ -177,19 +167,19 @@ func connectBot(device *store.Device, botID string) {
 	fmt.Printf("✅ Bot Online: %s\n", botID)
 	broadcastWS(WSMessage{Type: "new_session", BotID: botID})
 	
-	// Keep Alive
 	go func() {
 		for {
 			time.Sleep(1 * time.Minute)
 			if client.IsConnected() && sm.Settings[botID].AlwaysOnline {
-				client.SendPresence(types.PresenceAvailable)
+				// ✅ FIX: Added context.Background()
+				client.SendPresence(context.Background(), types.PresenceAvailable)
 			}
 		}
 	}()
 }
 
 // ==========================================
-// 💾 PERSISTENCE LOGIC (RAM <-> DISK)
+// 💾 PERSISTENCE LOGIC
 // ==========================================
 
 func loadSettings() {
@@ -199,7 +189,7 @@ func loadSettings() {
 		sm.mu.Lock()
 		json.Unmarshal(data, &sm.Settings)
 		sm.mu.Unlock()
-		fmt.Println("📂 Settings Loaded from Volume.")
+		fmt.Println("📂 Settings Loaded.")
 	}
 }
 
@@ -232,7 +222,6 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 	number := strings.ReplaceAll(req.Number, "+", "")
 	cleanID := getCleanID(number)
 	
-	// Create New Device Logic...
 	device := container.NewDevice()
 	client := whatsmeow.NewClient(device, waLog.Stdout("Pairing", "INFO", true))
 	
@@ -241,13 +230,13 @@ func handlePair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	code, err := client.PairPhone(number, true, whatsmeow.PairClientChrome, "Linux")
+	// ✅ FIX: Added context.Background() as first argument
+	code, err := client.PairPhone(context.Background(), number, true, whatsmeow.PairClientChrome, "Linux")
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	// Wait for Login (Background)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()

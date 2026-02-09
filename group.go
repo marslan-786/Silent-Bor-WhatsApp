@@ -12,7 +12,9 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// ... (GetTarget function same as before) ...
+// ==========================================
+// 🛠️ HELPER
+// ==========================================
 func GetTarget(v *events.Message, args []string) (types.JID, bool) {
 	if v.Message.ExtendedTextMessage != nil && v.Message.ExtendedTextMessage.ContextInfo != nil {
 		ctx := v.Message.ExtendedTextMessage.ContextInfo
@@ -41,6 +43,10 @@ func GetTarget(v *events.Message, args []string) (types.JID, bool) {
 	}
 	return types.EmptyJID, false
 }
+
+// ==========================================
+// 🛡️ ADMIN ACTIONS (Direct Action)
+// ==========================================
 
 func HandleKick(client *whatsmeow.Client, v *events.Message, args []string) {
 	target, found := GetTarget(v, args)
@@ -89,8 +95,8 @@ func HandleDelete(client *whatsmeow.Client, v *events.Message) {
 	
 	if targetID == nil { return }
 
-	// ✅ Fix: Correct RevokeMessage Signature (No SenderJID needed)
-	_, err := client.RevokeMessage(v.Info.Chat, types.MessageID(*targetID))
+	// ✅ FIX: Added context.Background() as first arg
+	_, err := client.RevokeMessage(context.Background(), v.Info.Chat, types.MessageID(*targetID))
 	
 	if err != nil { ReplyMessage(client, v, "❌ Failed.") }
 }
